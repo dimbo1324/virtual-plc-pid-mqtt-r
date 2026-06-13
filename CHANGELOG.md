@@ -11,3 +11,7 @@
 - Basic config validation.
 - Basic logger setup.
 - Repository structure for future PID, PLC, simulator, MQTT, storage and web UI stages.
+- Reusable `pkg/pid` controller package.
+- PID modes: auto, manual, hold and disabled.
+- Output limits and anti-windup behavior.
+- Unit tests for PID behavior and validation.
