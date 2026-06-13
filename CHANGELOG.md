@@ -15,3 +15,7 @@
 - PID modes: auto, manual, hold and disabled.
 - Output limits and anti-windup behavior.
 - Unit tests for PID behavior and validation.
+- Process simulator package with first-order process dynamics.
+- Deterministic noise support using a per-process random source.
+- Manual disturbance injection and expiry.
+- Simulator validation and unit tests.
