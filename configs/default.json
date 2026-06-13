@@ -23,12 +23,12 @@
     "reconnect_interval_seconds": 3
   },
   "web": {
-    "enabled": true,
+    "enabled": false,
     "host": "127.0.0.1",
     "port": 8080
   },
   "storage": {
-    "enabled": true,
+    "enabled": false,
     "type": "sqlite",
     "sqlite_path": "data/history.db",
     "events_jsonl_path": "logs/events.jsonl",

@@ -23,3 +23,6 @@
 - MQTT interface for telemetry publishing, status publishing and command subscription.
 - Local Mosquitto Docker Compose configuration.
 - PLC and MQTT unit tests.
+- Pre-storage architecture, lifecycle, validation and documentation hardening.
+- Explicit application-owned event fan-out and joined background goroutines.
+- Additional config, PLC channel, MQTT topic and app lifecycle tests.

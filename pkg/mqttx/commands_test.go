@@ -46,3 +46,13 @@ func TestParseCommandRejectsInvalidPayloads(t *testing.T) {
 		}
 	}
 }
+
+func TestParseCommandAllowsOptionalCommandID(t *testing.T) {
+	command, err := ParseCommand([]byte(`{"command":"start_plc"}`))
+	if err != nil {
+		t.Fatalf("ParseCommand() error = %v", err)
+	}
+	if command.CommandID != "" || command.Command != plc.CommandStartPLC {
+		t.Fatalf("command = %+v", command)
+	}
+}

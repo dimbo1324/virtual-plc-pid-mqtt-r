@@ -106,6 +106,9 @@ non-finite values, and payloads larger than 64 KiB are rejected. MQTT-originated
 commands have source `mqtt`; applied and rejected outcomes are published to the
 events topic.
 
+`command_id` is optional at the parser boundary for simple manual demos, but it
+is strongly recommended for auditability and future command persistence.
+
 ## Local Broker Demo
 
 ```bash
@@ -118,3 +121,7 @@ docker compose -f docker/docker-compose.yml down
 
 Normal unit tests do not require a broker. The optional integration test runs
 only when `VPLC_RUN_MQTT_TESTS=1` is set.
+
+The bundled Mosquitto configuration permits anonymous local access and has no
+TLS. It is for local demonstration only and must not be exposed as a production
+broker configuration.

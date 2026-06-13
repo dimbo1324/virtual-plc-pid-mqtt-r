@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/mqttx"
@@ -20,7 +21,8 @@ func (a *App) RunRuntime(ctx context.Context) error {
 		return err
 	}
 
-	runtime, err := plc.NewRuntime(mapPLCConfig(a.Config))
+	plcConfig := mapPLCConfig(a.Config)
+	runtime, err := plc.NewRuntime(plcConfig)
 	if err != nil {
 		return fmt.Errorf("create PLC runtime: %w", err)
 	}
@@ -39,15 +41,29 @@ func (a *App) RunRuntime(ctx context.Context) error {
 		return fmt.Errorf("create MQTT client: %w", err)
 	}
 
+	var background sync.WaitGroup
 	if mqttConfig.Enabled {
 		if err := mqttClient.Connect(ctx); err != nil {
 			a.Logger.Warn("MQTT broker unavailable; PLC runtime continues", "error", err)
-			go a.retryInitialMQTTConnection(ctx, mqttClient, mqttConfig.ReconnectInterval)
+			background.Add(1)
+			go func() {
+				defer background.Done()
+				a.retryInitialMQTTConnection(ctx, mqttClient, mqttConfig.ReconnectInterval, mqttConfig.ConnectTimeout)
+			}()
 		} else {
 			a.Logger.Info("MQTT connected", "broker", mqttConfig.BrokerURL, "base_topic", mqttConfig.BaseTopic)
 		}
-		go a.bridgeMQTT(ctx, runtime, mqttClient, mapPLCConfig(a.Config).PublishInterval)
+		background.Add(1)
+		go func() {
+			defer background.Done()
+			a.publishMQTTTelemetry(ctx, runtime, mqttClient, plcConfig.PublishInterval)
+		}()
 	}
+	background.Add(1)
+	go func() {
+		defer background.Done()
+		a.forwardRuntimeEvents(ctx, runtime, mqttClient)
+	}()
 
 	a.Logger.Info("PLC runtime mode active",
 		"device_id", a.Config.App.DeviceID,
@@ -58,15 +74,17 @@ func (a *App) RunRuntime(ctx context.Context) error {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
-	if err := runtime.Stop(shutdownCtx); err != nil {
-		return fmt.Errorf("stop PLC runtime: %w", err)
-	}
+	stopErr := runtime.Stop(shutdownCtx)
+	background.Wait()
 	mqttClient.Disconnect(250)
+	if stopErr != nil {
+		return fmt.Errorf("stop PLC runtime: %w", stopErr)
+	}
 	a.Logger.Info("runtime stopped gracefully")
 	return nil
 }
 
-func (a *App) retryInitialMQTTConnection(ctx context.Context, client *mqttx.Client, interval time.Duration) {
+func (a *App) retryInitialMQTTConnection(ctx context.Context, client *mqttx.Client, interval, connectTimeout time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -77,7 +95,7 @@ func (a *App) retryInitialMQTTConnection(ctx context.Context, client *mqttx.Clie
 			if client.IsConnected() {
 				return
 			}
-			attemptCtx, cancel := context.WithTimeout(ctx, mapMQTTConfig(a.Config).ConnectTimeout)
+			attemptCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 			err := client.Connect(attemptCtx)
 			cancel()
 			if err == nil {
@@ -89,7 +107,7 @@ func (a *App) retryInitialMQTTConnection(ctx context.Context, client *mqttx.Clie
 	}
 }
 
-func (a *App) bridgeMQTT(ctx context.Context, runtime *plc.Runtime, client *mqttx.Client, publishInterval time.Duration) {
+func (a *App) publishMQTTTelemetry(ctx context.Context, runtime *plc.Runtime, client *mqttx.Client, publishInterval time.Duration) {
 	ticker := time.NewTicker(publishInterval)
 	defer ticker.Stop()
 	for {
@@ -102,12 +120,32 @@ func (a *App) bridgeMQTT(ctx context.Context, runtime *plc.Runtime, client *mqtt
 					a.Logger.Warn("publish MQTT telemetry", "error", err)
 				}
 			}
+		}
+	}
+}
+
+func (a *App) forwardRuntimeEvents(ctx context.Context, runtime *plc.Runtime, client *mqttx.Client) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
 		case event := <-runtime.Events():
-			if client.IsConnected() {
+			// This is the application-owned fan-out point. Stage 07 can persist
+			// events here without adding storage dependencies to pkg/plc.
+			if client.IsConnected() && shouldPublishRuntimeEventToMQTT(event) {
 				if err := client.PublishEvent(ctx, event); err != nil {
 					a.Logger.Warn("publish MQTT event", "error", err)
 				}
 			}
 		}
 	}
+}
+
+func shouldPublishRuntimeEventToMQTT(event plc.Event) bool {
+	if event.Details == nil {
+		return true
+	}
+	// MQTT command responses are already published by pkg/mqttx. Skipping
+	// their mirrored runtime events prevents duplicate command outcomes.
+	return event.Details["source"] != "mqtt"
 }

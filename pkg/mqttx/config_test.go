@@ -1,8 +1,12 @@
 package mqttx
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/plc"
 )
 
 func validConfig() Config {
@@ -21,6 +25,8 @@ func TestConfigValidation(t *testing.T) {
 		{"empty broker", func(c *Config) { c.BrokerURL = "" }},
 		{"empty client ID", func(c *Config) { c.ClientID = "" }},
 		{"empty base topic", func(c *Config) { c.BaseTopic = "" }},
+		{"wildcard base topic", func(c *Config) { c.BaseTopic = "vplc/#" }},
+		{"empty base topic level", func(c *Config) { c.BaseTopic = "vplc//test" }},
 		{"bad QoS", func(c *Config) { c.QoS = 3 }},
 		{"zero connect timeout", func(c *Config) { c.ConnectTimeout = 0 }},
 		{"zero reconnect interval", func(c *Config) { c.ReconnectInterval = 0 }},
@@ -47,5 +53,42 @@ func TestDisabledClientIsNoOp(t *testing.T) {
 	if client.IsConnected() {
 		t.Fatal("disabled client reports connected")
 	}
+	if err := client.PublishStatus(context.Background(), StatusPayload{}); err != nil {
+		t.Fatalf("PublishStatus() error = %v", err)
+	}
+	if err := client.PublishSnapshot(context.Background(), plc.Snapshot{}); err != nil {
+		t.Fatalf("PublishSnapshot() error = %v", err)
+	}
+	if err := client.PublishEvent(context.Background(), plc.Event{}); err != nil {
+		t.Fatalf("PublishEvent() error = %v", err)
+	}
 	client.Disconnect(0)
+}
+
+func TestNewNormalizesConfigWithoutConnecting(t *testing.T) {
+	config := validConfig()
+	config.BrokerURL = " tcp://localhost:1883 "
+	config.ClientID = " test-client "
+	config.BaseTopic = " /vplc/device-1/ "
+	client, err := New(config, func(context.Context, plc.Command) (plc.Event, error) {
+		return plc.Event{}, nil
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if client.config.BrokerURL != "tcp://localhost:1883" || client.config.ClientID != "test-client" || client.config.BaseTopic != "vplc/device-1" {
+		t.Fatalf("normalized config = %+v", client.config)
+	}
+	if client.deviceID != "device-1" {
+		t.Fatalf("device ID = %q", client.deviceID)
+	}
+	if err := client.PublishEvent(context.Background(), plc.Event{}); !errors.Is(err, ErrNotConnected) {
+		t.Fatalf("PublishEvent() error = %v, want ErrNotConnected", err)
+	}
+}
+
+func TestNewEnabledClientRequiresCommandHandler(t *testing.T) {
+	if _, err := New(validConfig(), nil); err == nil {
+		t.Fatal("New() accepted enabled config without command handler")
+	}
 }
