@@ -1,4 +1,3 @@
-// Package mqttx will contain MQTT telemetry and command integration.
-//
-// Stage 01 intentionally contains no MQTT implementation.
+// Package mqttx publishes PLC telemetry and events and converts MQTT command
+// payloads into typed plc commands.
 package mqttx

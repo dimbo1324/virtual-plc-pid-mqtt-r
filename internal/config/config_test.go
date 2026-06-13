@@ -26,6 +26,12 @@ func TestValidationRejectsInvalidConfiguration(t *testing.T) {
 			},
 		},
 		{
+			name: "zero scan overrun warning",
+			mutate: func(cfg *Config) {
+				cfg.PLC.ScanOverrunWarningMS = 0
+			},
+		},
+		{
 			name: "invalid enabled web port",
 			mutate: func(cfg *Config) {
 				cfg.Web.Enabled = true
@@ -37,6 +43,12 @@ func TestValidationRejectsInvalidConfiguration(t *testing.T) {
 			mutate: func(cfg *Config) {
 				cfg.MQTT.Enabled = true
 				cfg.MQTT.BrokerURL = ""
+			},
+		},
+		{
+			name: "enabled MQTT with bad QoS",
+			mutate: func(cfg *Config) {
+				cfg.MQTT.QoS = 3
 			},
 		},
 		{
