@@ -19,3 +19,7 @@
 - Deterministic noise support using a per-process random source.
 - Manual disturbance injection and expiry.
 - Simulator validation and unit tests.
+- Virtual PLC runtime with scan cycle, loop registry, snapshots, events and command handling.
+- MQTT interface for telemetry publishing, status publishing and command subscription.
+- Local Mosquitto Docker Compose configuration.
+- PLC and MQTT unit tests.

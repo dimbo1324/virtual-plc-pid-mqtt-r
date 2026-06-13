@@ -7,7 +7,7 @@ import (
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/config"
 )
 
-// App contains the dependencies for the Stage 01 application foundation.
+// App contains configuration and logging used to assemble runtime services.
 type App struct {
 	Config config.Config
 	Logger *slog.Logger
@@ -18,8 +18,7 @@ func New(cfg config.Config, logger *slog.Logger) *App {
 	return &App{Config: cfg, Logger: logger}
 }
 
-// Run verifies the context and reports that the runtime foundation is ready.
-// Later stages will add the long-running PLC services.
+// Run preserves the short foundation startup used by CLI smoke checks.
 func (a *App) Run(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err

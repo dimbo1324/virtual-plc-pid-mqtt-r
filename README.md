@@ -1,46 +1,52 @@
 # virtual-plc-pid-mqtt-r
 
-A lightweight Go foundation for a reusable virtual PLC, PID, process simulation,
-MQTT telemetry, local history, and embedded dashboard project.
+A lightweight virtual PLC simulator in Go with reusable PID controllers,
+first-order process models, MQTT telemetry, and remote command handling.
 
 ## Safety Notice
 
 This software is a virtual PLC / PID / MQTT simulator.
 It is not intended to control real industrial equipment.
-Do not connect it directly to real actuators or safety-critical systems.
+Do not connect this simulator directly to real actuators or safety-critical systems.
 
 ## Current Status
 
-Stage 03/04: PID core verified and process simulator package implemented.
-PLC runtime, MQTT, storage and web UI are planned but not implemented yet.
+Stages 01-06 are implemented:
 
-## Architecture Overview
+- JSON configuration and CLI foundation
+- reusable PID controller package
+- deterministic synthetic process simulator
+- concurrent PLC runtime with real elapsed `dt`, snapshots, events, and commands
+- MQTT status, telemetry, events, command subscription, LWT, and reconnect behavior
+- local Mosquitto Docker Compose configuration
 
-The project targets a single Go binary. The entry point loads and validates JSON
-configuration, initializes standard-library logging, and starts the application
-foundation. Future stages will add independent PID, PLC, simulator, MQTT,
-storage, and web components.
+Storage, HTTP/SSE, and the web dashboard are intentionally not implemented yet.
 
-## Repository Structure
+## Architecture
 
 ```text
-cmd/vplc/       CLI entry point
-internal/app/   application lifecycle foundation and version
-internal/config JSON configuration loading and validation
-internal/logging standard-library logger setup
-pkg/            documented placeholders for reusable future packages
-configs/        default JSON configuration
-docs/           project specification and supporting documentation
-scripts/        PowerShell and shell helper commands
+JSON config
+    |
+    v
+PLC runtime: PID controllers <-> synthetic processes
+    | snapshots/events          ^ typed commands
+    v                           |
+MQTT telemetry/events <-> MQTT command subscription
 ```
+
+The application remains a single Go binary. `pkg/plc` depends only on
+`pkg/pid` and `pkg/simulator`; `pkg/mqttx` depends on `pkg/plc` and Eclipse
+Paho. Application-specific mapping and lifecycle code live in `internal/app`.
 
 ## Requirements
 
-- Go 1.25.5 or later for the current module.
-- Go 1.26 is the target baseline when it becomes available in the development environment.
-- No external services are required for Stage 03/04.
+- Go 1.25.5 or later for the current module
+- Go 1.26 remains the project target when available locally
+- Docker Desktop or another MQTT broker is optional for broker integration
 
 ## Quick Start
+
+Short foundation checks do not start a long-running service:
 
 ```bash
 go run ./cmd/vplc --version
@@ -48,19 +54,63 @@ go run ./cmd/vplc --validate-config --config configs/default.json
 go run ./cmd/vplc --config configs/default.json
 ```
 
-## Configuration
+Run the full PLC lifecycle until Ctrl+C:
 
-The default configuration is `configs/default.json`. It defines the future
-application, PLC, MQTT, web, storage, and pressure/temperature/level loop shape.
-Stage 01 loads and validates this data but does not activate those subsystems.
+```bash
+go run ./cmd/vplc --run --config configs/default.json
+```
 
-## Development Commands
+If MQTT is enabled but the broker is unavailable, the PLC continues scanning
+and the application retries the initial connection in the background.
+
+## MQTT Demo
+
+Start Mosquitto:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d
+```
+
+Start the runtime:
+
+```bash
+go run ./cmd/vplc --run --config configs/default.json
+```
+
+Observe all project topics:
+
+```bash
+mosquitto_sub -h localhost -t "vplc/#" -v
+```
+
+Change the pressure setpoint:
+
+```bash
+mosquitto_pub -h localhost -t "vplc/vplc_001/commands" -m '{"command_id":"cmd-1","command":"set_setpoint","loop":"pressure","value":7.5}'
+```
+
+Stop Mosquitto:
+
+```bash
+docker compose -f docker/docker-compose.yml down
+```
+
+See [PLC runtime](docs/plc_runtime.md) and [MQTT contract](docs/mqtt_contract.md)
+for APIs, payloads, commands, and lifecycle details.
+
+## Development
 
 ```bash
 gofmt -w .
 go test ./...
 go vet ./...
 go build -o dist/vplc ./cmd/vplc
+```
+
+Optional broker integration:
+
+```bash
+VPLC_RUN_MQTT_TESTS=1 go test ./tests/integration/... -v
 ```
 
 Windows build:
@@ -71,15 +121,6 @@ go build -o dist\vplc.exe .\cmd\vplc
 
 ## Roadmap
 
-1. Stage 01: project foundation completed.
-2. Stage 02: reusable PID package implemented.
-3. Stage 03/04: PID core verified and process simulator implemented.
-4. Next: PLC runtime connecting PID controllers to process models.
-5. Later stages: MQTT, storage, embedded web UI, and portfolio polish.
-
-## Portfolio Summary
-
-The finished project will demonstrate Go backend and edge development,
-industrial automation concepts, PID control, synthetic process modeling, MQTT,
-local telemetry history, and a compact operator dashboard without a complex
-deployment stack.
+1. Foundation, PID, simulator, PLC runtime, and MQTT: completed.
+2. Next: storage and engineering logging.
+3. Later: embedded local web UI, HTTP API, SSE, and portfolio polish.

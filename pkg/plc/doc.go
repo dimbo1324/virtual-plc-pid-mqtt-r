@@ -1,4 +1,3 @@
-// Package plc will contain the virtual PLC scan-cycle runtime.
-//
-// Stage 01 intentionally contains no PLC runtime implementation.
+// Package plc connects reusable PID controllers and synthetic processes in a
+// concurrent virtual PLC scan-cycle runtime.
 package plc

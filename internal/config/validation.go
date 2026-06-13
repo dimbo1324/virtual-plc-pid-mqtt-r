@@ -29,6 +29,9 @@ func (c Config) Validate() error {
 	if c.PLC.UIUpdateIntervalMS <= 0 {
 		return fmt.Errorf("plc.ui_update_interval_ms must be greater than zero")
 	}
+	if c.PLC.ScanOverrunWarningMS <= 0 {
+		return fmt.Errorf("plc.scan_overrun_warning_ms must be greater than zero")
+	}
 	if c.Web.Enabled && (c.Web.Port < 1 || c.Web.Port > 65535) {
 		return fmt.Errorf("web.port must be between 1 and 65535 when web is enabled")
 	}
@@ -38,6 +41,18 @@ func (c Config) Validate() error {
 		}
 		if strings.TrimSpace(c.MQTT.BaseTopic) == "" {
 			return fmt.Errorf("mqtt.base_topic must not be empty when MQTT is enabled")
+		}
+		if strings.TrimSpace(c.MQTT.ClientID) == "" {
+			return fmt.Errorf("mqtt.client_id must not be empty when MQTT is enabled")
+		}
+		if c.MQTT.QoS > 2 {
+			return fmt.Errorf("mqtt.qos must be 0, 1, or 2")
+		}
+		if c.MQTT.ConnectTimeoutSeconds <= 0 {
+			return fmt.Errorf("mqtt.connect_timeout_seconds must be greater than zero")
+		}
+		if c.MQTT.ReconnectIntervalSeconds <= 0 {
+			return fmt.Errorf("mqtt.reconnect_interval_seconds must be greater than zero")
 		}
 	}
 	if c.Storage.Enabled {
@@ -87,11 +102,17 @@ func (l LoopConfig) validate(index int, names map[string]struct{}) error {
 	if l.PID.OutputMin >= l.PID.OutputMax {
 		return fmt.Errorf("loop %q pid.output_min must be less than pid.output_max", name)
 	}
+	if l.PID.Kp < 0 || l.PID.Ki < 0 || l.PID.Kd < 0 {
+		return fmt.Errorf("loop %q PID gains must not be negative", name)
+	}
 	if l.Process.Min >= l.Process.Max {
 		return fmt.Errorf("loop %q process.min must be less than process.max", name)
 	}
 	if l.Process.TauSeconds <= 0 {
 		return fmt.Errorf("loop %q process.tau_seconds must be greater than zero", name)
+	}
+	if l.Process.InitialPV < l.Process.Min || l.Process.InitialPV > l.Process.Max {
+		return fmt.Errorf("loop %q process.initial_pv must be within [%g, %g]", name, l.Process.Min, l.Process.Max)
 	}
 	if l.Process.NoiseStddev < 0 {
 		return fmt.Errorf("loop %q process.noise_stddev must not be negative", name)
