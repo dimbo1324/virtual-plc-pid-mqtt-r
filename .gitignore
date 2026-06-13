@@ -1,0 +1,40 @@
+# Go build output
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+coverage.out
+
+# Local data and logs
+/data/*
+!/data/.gitkeep
+/logs/*
+!/logs/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Node future web tooling
+node_modules/
+web/dist/
+
+# Docker/export artifacts
+*.tar
