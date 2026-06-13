@@ -128,3 +128,25 @@ func TestRuntimeEmitsScanOverrun(t *testing.T) {
 		}
 	}
 }
+
+func TestFullOutputChannelsDoNotBlockRuntime(t *testing.T) {
+	config := testConfig()
+	config.ScanInterval = time.Millisecond
+	runtime, err := NewRuntime(config)
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	for i := 0; i < defaultEventBuffer+10; i++ {
+		runtime.emitEvent(newEvent("info", "buffer_test", "fill event buffer", nil))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	waitForScans(t, runtime, defaultSnapshotBuffer+10)
+	if err := runtime.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+}

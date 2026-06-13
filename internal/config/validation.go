@@ -5,14 +5,7 @@ import (
 	"strings"
 )
 
-var validLoopModes = map[string]struct{}{
-	"auto":     {},
-	"manual":   {},
-	"hold":     {},
-	"disabled": {},
-}
-
-// Validate checks the Stage 01 configuration invariants.
+// Validate checks the application configuration invariants.
 func (c Config) Validate() error {
 	if strings.TrimSpace(c.App.Name) == "" {
 		return fmt.Errorf("app.name must not be empty")
@@ -41,6 +34,9 @@ func (c Config) Validate() error {
 		}
 		if strings.TrimSpace(c.MQTT.BaseTopic) == "" {
 			return fmt.Errorf("mqtt.base_topic must not be empty when MQTT is enabled")
+		}
+		if err := validateMQTTBaseTopic(c.MQTT.BaseTopic); err != nil {
+			return err
 		}
 		if strings.TrimSpace(c.MQTT.ClientID) == "" {
 			return fmt.Errorf("mqtt.client_id must not be empty when MQTT is enabled")
@@ -85,12 +81,15 @@ func (l LoopConfig) validate(index int, names map[string]struct{}) error {
 	if name == "" {
 		return fmt.Errorf("loops[%d].name must not be empty", index)
 	}
+	if name != l.Name {
+		return fmt.Errorf("loop name %q must not have leading or trailing whitespace", l.Name)
+	}
 	if _, exists := names[name]; exists {
 		return fmt.Errorf("loop name %q must be unique", name)
 	}
 	names[name] = struct{}{}
 
-	if _, ok := validLoopModes[l.Mode]; !ok {
+	if !validLoopMode(l.Mode) {
 		return fmt.Errorf("loop %q has unsupported mode %q", name, l.Mode)
 	}
 	if l.SetpointMin >= l.SetpointMax {
@@ -118,5 +117,27 @@ func (l LoopConfig) validate(index int, names map[string]struct{}) error {
 		return fmt.Errorf("loop %q process.noise_stddev must not be negative", name)
 	}
 
+	return nil
+}
+
+func validLoopMode(mode string) bool {
+	switch mode {
+	case "auto", "manual", "hold", "disabled":
+		return true
+	default:
+		return false
+	}
+}
+
+func validateMQTTBaseTopic(baseTopic string) error {
+	topic := strings.Trim(strings.TrimSpace(baseTopic), "/")
+	if strings.ContainsAny(topic, "+#\x00") {
+		return fmt.Errorf("mqtt.base_topic must not contain MQTT wildcards or null bytes")
+	}
+	for _, level := range strings.Split(topic, "/") {
+		if level == "" {
+			return fmt.Errorf("mqtt.base_topic must not contain empty topic levels")
+		}
+	}
 	return nil
 }

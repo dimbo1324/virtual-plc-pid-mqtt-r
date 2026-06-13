@@ -18,8 +18,8 @@ coverage.out
 
 # Environment files
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # OS/editor
 .DS_Store

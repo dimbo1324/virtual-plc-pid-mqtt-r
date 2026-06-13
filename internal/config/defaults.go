@@ -1,6 +1,6 @@
 package config
 
-// Default returns the Stage 01 baseline configuration.
+// Default returns the current simulator configuration.
 func Default() Config {
 	return Config{
 		App: AppConfig{
@@ -25,12 +25,12 @@ func Default() Config {
 			ReconnectIntervalSeconds: 3,
 		},
 		Web: WebConfig{
-			Enabled: true,
+			Enabled: false,
 			Host:    "127.0.0.1",
 			Port:    8080,
 		},
 		Storage: StorageConfig{
-			Enabled:             true,
+			Enabled:             false,
 			Type:                "sqlite",
 			SQLitePath:          "data/history.db",
 			EventsJSONLPath:     "logs/events.jsonl",

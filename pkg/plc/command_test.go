@@ -131,6 +131,8 @@ func TestInvalidCommandsAreRejected(t *testing.T) {
 		{Command: CommandType("unknown"), Loop: "pressure"},
 		{Command: CommandSetSetpoint, Loop: "pressure", Value: ptr(math.NaN())},
 		{Command: CommandSetSetpoint, Loop: "pressure", Value: ptr(99)},
+		{Command: CommandInjectDisturbance, Loop: "pressure", Value: ptr(1), DurationSeconds: ptr(0)},
+		{Command: CommandInjectDisturbance, Loop: "pressure", Value: ptr(math.Inf(1))},
 	}
 	for _, command := range tests {
 		event, err := runtime.ApplyCommand(command)
@@ -140,6 +142,23 @@ func TestInvalidCommandsAreRejected(t *testing.T) {
 		if event.Type != EventCommandRejected {
 			t.Fatalf("event type = %q, want rejected", event.Type)
 		}
+	}
+}
+
+func TestRejectedCommandEventIncludesDiagnosticContext(t *testing.T) {
+	runtime := newTestRuntime(t)
+	event, err := runtime.ApplyCommand(Command{
+		CommandID: "bad-1", Command: CommandSetSetpoint, Loop: "missing",
+		Value: ptr(5), Source: "mqtt",
+	})
+	if err == nil {
+		t.Fatal("unknown loop command accepted")
+	}
+	if event.Type != EventCommandRejected || event.Level != "warning" {
+		t.Fatalf("rejection event = %+v", event)
+	}
+	if event.Details["command_id"] != "bad-1" || event.Details["source"] != "mqtt" {
+		t.Fatalf("rejection details = %+v", event.Details)
 	}
 }
 

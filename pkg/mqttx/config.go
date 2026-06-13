@@ -33,8 +33,17 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.ClientID) == "" {
 		return fmt.Errorf("%w: client ID must not be empty", ErrInvalidConfig)
 	}
-	if strings.Trim(strings.TrimSpace(c.BaseTopic), "/") == "" {
+	baseTopic := strings.Trim(strings.TrimSpace(c.BaseTopic), "/")
+	if baseTopic == "" {
 		return fmt.Errorf("%w: base topic must not be empty", ErrInvalidConfig)
+	}
+	if strings.ContainsAny(baseTopic, "+#\x00") {
+		return fmt.Errorf("%w: base topic must not contain MQTT wildcards or null bytes", ErrInvalidConfig)
+	}
+	for _, level := range strings.Split(baseTopic, "/") {
+		if level == "" {
+			return fmt.Errorf("%w: base topic must not contain empty topic levels", ErrInvalidConfig)
+		}
 	}
 	if c.ConnectTimeout <= 0 {
 		return fmt.Errorf("%w: connect timeout must be greater than zero", ErrInvalidConfig)

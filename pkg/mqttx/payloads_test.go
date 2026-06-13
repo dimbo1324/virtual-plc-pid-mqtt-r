@@ -36,3 +36,22 @@ func TestPayloadsMarshalValidJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestStatusPayloadsPreserveOnlineAndOfflineState(t *testing.T) {
+	for _, status := range []StatusPayload{
+		{DeviceID: "device", Status: "online", Timestamp: time.Now().UTC()},
+		{DeviceID: "device", Status: "offline", Reason: "graceful_shutdown", Timestamp: time.Now().UTC()},
+	} {
+		payload, err := MarshalStatus(status)
+		if err != nil {
+			t.Fatalf("MarshalStatus() error = %v", err)
+		}
+		var decoded StatusPayload
+		if err := json.Unmarshal(payload, &decoded); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if decoded.Status != status.Status || decoded.Reason != status.Reason {
+			t.Fatalf("decoded status = %+v, want %+v", decoded, status)
+		}
+	}
+}

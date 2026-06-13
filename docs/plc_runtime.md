@@ -43,6 +43,9 @@ controllers, process models, lifecycle state, and the latest snapshot with an
 
 Events and scan snapshots use bounded channels. Slow consumers cannot block
 the scan indefinitely; messages are dropped when a channel buffer is full.
+These channels are queues rather than broadcast subscriptions. Application
+wiring must own each read and fan values out to MQTT, storage, or future UI
+consumers without making them compete for the same channel.
 
 ## Commands
 
@@ -66,3 +69,5 @@ PID gains, and disturbance duration. Rejected commands do not panic and emit a
 
 The runtime has no MQTT, HTTP, web, storage, or logging dependency. Persistent
 history and a web dashboard are intentionally not part of this stage.
+The planned storage boundary is documented in
+[`pre_storage_notes.md`](pre_storage_notes.md).

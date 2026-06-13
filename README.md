@@ -21,6 +21,8 @@ Stages 01-06 are implemented:
 - local Mosquitto Docker Compose configuration
 
 Storage, HTTP/SSE, and the web dashboard are intentionally not implemented yet.
+SQLite, JSONL history, CI, authentication, TLS setup, and real equipment
+communication are also outside the current implementation.
 
 ## Architecture
 
@@ -37,6 +39,10 @@ MQTT telemetry/events <-> MQTT command subscription
 The application remains a single Go binary. `pkg/plc` depends only on
 `pkg/pid` and `pkg/simulator`; `pkg/mqttx` depends on `pkg/plc` and Eclipse
 Paho. Application-specific mapping and lifecycle code live in `internal/app`.
+
+Detailed boundaries are documented in [Architecture](docs/architecture.md).
+The next persistence extension points and risks are documented in
+[Pre-storage Notes](docs/pre_storage_notes.md).
 
 ## Requirements
 
@@ -62,6 +68,30 @@ go run ./cmd/vplc --run --config configs/default.json
 
 If MQTT is enabled but the broker is unavailable, the PLC continues scanning
 and the application retries the initial connection in the background.
+
+The helper scripts start the same long-running mode:
+
+```powershell
+.\scripts\run.ps1
+```
+
+```bash
+./scripts/run.sh
+```
+
+## Configuration
+
+The default JSON file is `configs/default.json`. Unknown JSON fields and extra
+JSON values are rejected. Validation covers PLC timing, MQTT connection fields
+and topic shape, loop names and modes, PID/process ranges, and conditional web
+or storage paths.
+
+Web and storage are disabled in the default configuration because those
+subsystems are not implemented yet.
+
+```bash
+go run ./cmd/vplc --validate-config --config configs/default.json
+```
 
 ## MQTT Demo
 
@@ -95,6 +125,9 @@ Stop Mosquitto:
 docker compose -f docker/docker-compose.yml down
 ```
 
+The bundled broker allows anonymous local connections and does not configure
+TLS. Keep it on a trusted development machine only.
+
 See [PLC runtime](docs/plc_runtime.md) and [MQTT contract](docs/mqtt_contract.md)
 for APIs, payloads, commands, and lifecycle details.
 
@@ -102,6 +135,8 @@ for APIs, payloads, commands, and lifecycle details.
 
 ```bash
 gofmt -w .
+go mod tidy
+go mod verify
 go test ./...
 go vet ./...
 go build -o dist/vplc ./cmd/vplc
@@ -122,5 +157,8 @@ go build -o dist\vplc.exe .\cmd\vplc
 ## Roadmap
 
 1. Foundation, PID, simulator, PLC runtime, and MQTT: completed.
-2. Next: storage and engineering logging.
+2. Next: `stage-07-storage-history` for bounded local persistence and logging.
 3. Later: embedded local web UI, HTTP API, SSE, and portfolio polish.
+
+Development conventions and release checks are described in the
+[Developer Guide](docs/developer_guide.md).
