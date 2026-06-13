@@ -11,8 +11,8 @@ Do not connect it directly to real actuators or safety-critical systems.
 
 ## Current Status
 
-Stage 01: project foundation.
-PID, PLC runtime, simulator, MQTT, storage and web UI are planned but not implemented yet.
+Stage 02: reusable PID package implemented.
+PLC runtime, simulator, MQTT, storage and web UI are planned but not implemented yet.
 
 ## Architecture Overview
 
@@ -36,9 +36,9 @@ scripts/        PowerShell and shell helper commands
 
 ## Requirements
 
-- Go 1.25.5 or later for the current Stage 01 module.
+- Go 1.25.5 or later for the current module.
 - Go 1.26 is the target baseline when it becomes available in the development environment.
-- No external services are required for Stage 01.
+- No external services are required for Stage 02.
 
 ## Quick Start
 
@@ -71,8 +71,8 @@ go build -o dist\vplc.exe .\cmd\vplc
 
 ## Roadmap
 
-1. Stage 01: project foundation.
-2. Stage 02: reusable PID package.
+1. Stage 01: project foundation completed.
+2. Stage 02: reusable PID package implemented.
 3. Later stages: simulator, PLC runtime, MQTT, storage, embedded web UI, and portfolio polish.
 
 ## Portfolio Summary
