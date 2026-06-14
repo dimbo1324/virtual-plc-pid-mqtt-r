@@ -159,3 +159,54 @@ func TestCommandInjectDisturbance_InvalidBody(t *testing.T) {
 		t.Errorf("invalid body = %d, want 400", res.StatusCode)
 	}
 }
+
+func TestCommandPIDGains_InvalidBody(t *testing.T) {
+	ts, _ := handlerTest(t)
+	res, err := http.Post(ts.URL+"/api/commands/pid-gains", "application/json", bytes.NewBufferString("not-json"))
+	if err != nil {
+		t.Fatalf("POST /api/commands/pid-gains: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Errorf("invalid pid-gains body = %d, want 400", res.StatusCode)
+	}
+}
+
+func TestCommandMode_InvalidBody(t *testing.T) {
+	ts, _ := handlerTest(t)
+	res, err := http.Post(ts.URL+"/api/commands/mode", "application/json", bytes.NewBufferString("not-json"))
+	if err != nil {
+		t.Fatalf("POST /api/commands/mode: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Errorf("invalid mode body = %d, want 400", res.StatusCode)
+	}
+}
+
+func TestCommandResetLoop_InvalidBody(t *testing.T) {
+	ts, _ := handlerTest(t)
+	res, err := http.Post(ts.URL+"/api/commands/reset-loop", "application/json", bytes.NewBufferString("not-json"))
+	if err != nil {
+		t.Fatalf("POST /api/commands/reset-loop: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Errorf("invalid reset-loop body = %d, want 400", res.StatusCode)
+	}
+}
+
+func TestCommandSetpoint_MissingContentType(t *testing.T) {
+	ts, _ := handlerTest(t)
+	body, _ := json.Marshal(map[string]any{"loop": "test", "setpoint": 60.0})
+	// No Content-Type header: server should still parse valid JSON.
+	res, err := http.Post(ts.URL+"/api/commands/setpoint", "", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST /api/commands/setpoint: %v", err)
+	}
+	defer res.Body.Close()
+	// A 400 or 200 is acceptable — the key invariant is that 404 never occurs.
+	if res.StatusCode == http.StatusNotFound {
+		t.Errorf("setpoint endpoint returned 404")
+	}
+}

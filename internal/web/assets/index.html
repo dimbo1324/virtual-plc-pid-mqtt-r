@@ -7,29 +7,75 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header>
-    <h1>Virtual PLC</h1>
-    <div id="status-bar">
+
+<header id="app-header">
+    <div class="hdr-brand">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="11" cy="11" r="3" fill="#58a6ff"/>
+            <path d="M11 2v3M11 17v3M2 11h3M17 11h3M4.22 4.22l2.12 2.12M15.66 15.66l2.12 2.12M4.22 17.78l2.12-2.12M15.66 6.34l2.12-2.12"
+                  stroke="#58a6ff" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span data-i18n="app.title">Virtual PLC</span>
+    </div>
+
+    <div class="hdr-status">
+        <span id="connection-dot" class="dot" title="SSE"></span>
         <span id="device-id">—</span>
         <span class="sep">|</span>
         <span id="plc-state" class="state-badge">—</span>
         <span class="sep">|</span>
         <span id="uptime">—</span>
-        <span class="sep">|</span>
-        <span id="connection-dot" class="dot" title="SSE connection"></span>
     </div>
-    <div class="header-controls">
-        <button class="btn-plc start" onclick="cmdStart()">&#9654; Start</button>
-        <button class="btn-plc stop"  onclick="cmdStop()">&#9632; Stop</button>
+
+    <div class="hdr-actions">
+        <button class="btn-plc start" id="btn-start" data-i18n="header.start">Start</button>
+        <button class="btn-plc stop"  id="btn-stop"  data-i18n="header.stop">Stop</button>
+    </div>
+
+    <div class="hdr-meta">
+        <button class="btn-icon" id="btn-manual" data-i18n="header.manual">Manual</button>
+        <button class="btn-icon" id="btn-lang"   data-i18n="header.lang">RU</button>
     </div>
 </header>
-<main>
-    <div id="loops-section"></div>
-    <section id="events-section">
-        <h2>Events</h2>
-        <div id="event-terminal"></div>
-    </section>
-</main>
+
+<div id="app-body">
+    <div id="app-layout">
+        <main id="main-panel">
+            <div id="charts-grid"></div>
+        </main>
+
+        <div id="resize-handle" class="resize-handle-v" role="separator" aria-orientation="vertical"></div>
+
+        <aside id="events-panel">
+            <div class="events-header">
+                <h2 data-i18n="events.title">Event Log</h2>
+                <button class="btn-icon" id="btn-clear-events" data-i18n="events.clear">Clear</button>
+            </div>
+            <div id="event-terminal">
+                <div class="events-empty" data-i18n="events.empty">No events yet</div>
+            </div>
+        </aside>
+    </div>
+</div>
+
+<!-- Manual drawer -->
+<div id="drawer-overlay"></div>
+<aside id="manual-drawer" role="complementary" aria-label="User Manual">
+    <div class="drawer-header">
+        <h2 data-i18n="manual.title">User Manual</h2>
+        <button class="btn-icon" id="btn-close-manual" data-i18n="manual.close">Close</button>
+    </div>
+    <nav class="drawer-tabs" role="tablist">
+        <button class="drawer-tab active" role="tab" data-tab="overview" data-i18n="manual.tab.overview">Overview</button>
+        <button class="drawer-tab" role="tab" data-tab="plc"      data-i18n="manual.tab.plc">PLC Theory</button>
+        <button class="drawer-tab" role="tab" data-tab="pid"      data-i18n="manual.tab.pid">PID Theory</button>
+        <button class="drawer-tab" role="tab" data-tab="usage"    data-i18n="manual.tab.usage">Usage Guide</button>
+        <button class="drawer-tab" role="tab" data-tab="api"      data-i18n="manual.tab.api">API Reference</button>
+    </nav>
+    <div id="manual-content"></div>
+</aside>
+
+<script src="i18n.js"></script>
 <script src="chart.js"></script>
 <script src="app.js"></script>
 </body>
