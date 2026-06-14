@@ -20,7 +20,7 @@ const TRANSLATIONS = {
         'card.mode': 'Mode',
         'card.auto': 'AUTO',
         'card.manual': 'MANUAL',
-        'card.cascade': 'CASCADE',
+        'card.hold': 'HOLD',
         'card.pv': 'PV',
         'card.sp': 'SP',
         'card.mv': 'MV',
@@ -67,7 +67,7 @@ const TRANSLATIONS = {
         'card.mode': 'Режим',
         'card.auto': 'АВТО',
         'card.manual': 'РУЧНОЙ',
-        'card.cascade': 'КАСКАД',
+        'card.hold': 'УДЕРЖАНИЕ',
         'card.pv': 'ПЗ',
         'card.sp': 'ЗД',
         'card.mv': 'РВ',
@@ -218,7 +218,7 @@ u[k] = P + I[k] + D
 <h3>POST /api/commands/setpoint</h3>
 <p>Updates a loop setpoint. Body: <code>{"loop":"loop_name","value":42.0}</code>.</p>
 <h3>POST /api/commands/mode</h3>
-<p>Changes a loop mode. Body: <code>{"loop":"loop_name","mode":"auto"|"manual"|"cascade"}</code>.</p>
+<p>Changes a loop mode. Body: <code>{"loop":"loop_name","mode":"auto"|"manual"|"hold"}</code>.</p>
 <h3>POST /api/commands/manual_output</h3>
 <p>Sets manual output value (MANUAL mode only). Body: <code>{"loop":"loop_name","value":50.0}</code>.</p>
 <h3>POST /api/commands/inject_disturbance</h3>
@@ -346,7 +346,7 @@ u[k] = П + И[k] + Д
 <h3>POST /api/commands/setpoint</h3>
 <p>Обновляет задание контура. Тело: <code>{"loop":"имя_контура","value":42.0}</code>.</p>
 <h3>POST /api/commands/mode</h3>
-<p>Изменяет режим контура. Тело: <code>{"loop":"имя_контура","mode":"auto"|"manual"|"cascade"}</code>.</p>
+<p>Изменяет режим контура. Тело: <code>{"loop":"имя_контура","mode":"auto"|"manual"|"hold"}</code>.</p>
 <h3>POST /api/commands/manual_output</h3>
 <p>Устанавливает значение ручного выхода (только режим РУЧНОЙ). Тело: <code>{"loop":"имя_контура","value":50.0}</code>.</p>
 <h3>POST /api/commands/inject_disturbance</h3>

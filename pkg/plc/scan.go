@@ -34,7 +34,11 @@ func (r *Runtime) scan(scanTime time.Time, dt time.Duration) error {
 	r.mu.Lock()
 	for name, loop := range r.loops {
 		processState := loop.process.Snapshot()
-		output, err := loop.controller.Update(processState.PV, dt)
+		pv := processState.PV
+		if extPV, ok := r.externalPVs[name]; ok {
+			pv = extPV
+		}
+		output, err := loop.controller.Update(pv, dt)
 		if err != nil {
 			r.mu.Unlock()
 			return fmt.Errorf("update PID loop %q: %w", name, err)
@@ -72,7 +76,12 @@ func (r *Runtime) scan(scanTime time.Time, dt time.Duration) error {
 func (r *Runtime) buildSnapshotLocked(timestamp time.Time) Snapshot {
 	loops := make(map[string]LoopSnapshot, len(r.loops))
 	for name, loop := range r.loops {
-		loops[name] = loop.snapshot()
+		ls := loop.snapshot()
+		if extPV, ok := r.externalPVs[name]; ok {
+			ls.ProcessValue = extPV
+			ls.Error = ls.Setpoint - extPV
+		}
+		loops[name] = ls
 	}
 	return Snapshot{
 		Timestamp: timestamp, DeviceID: r.config.DeviceID,

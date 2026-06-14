@@ -173,9 +173,9 @@ function createLoopCard(container, name, loop) {
   </div>
   <div class="ctrl-row">
     <select class="ctrl-select mode-select">
-      <option value="auto"    data-i18n="card.auto">${t('card.auto')}</option>
-      <option value="manual"  data-i18n="card.manual">${t('card.manual')}</option>
-      <option value="cascade" data-i18n="card.cascade">${t('card.cascade')}</option>
+      <option value="auto"   data-i18n="card.auto">${t('card.auto')}</option>
+      <option value="manual" data-i18n="card.manual">${t('card.manual')}</option>
+      <option value="hold"   data-i18n="card.hold">${t('card.hold')}</option>
     </select>
     <button class="ctrl-btn mode-btn" data-i18n="card.mode">${t('card.mode')}</button>
   </div>
