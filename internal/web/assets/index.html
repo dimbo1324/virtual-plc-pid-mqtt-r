@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual PLC Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+    <h1>Virtual PLC</h1>
+    <div id="status-bar">
+        <span id="device-id">—</span>
+        <span class="sep">|</span>
+        <span id="plc-state" class="state-badge">—</span>
+        <span class="sep">|</span>
+        <span id="uptime">—</span>
+        <span class="sep">|</span>
+        <span id="connection-dot" class="dot" title="SSE connection"></span>
+    </div>
+    <div class="header-controls">
+        <button class="btn-plc start" onclick="cmdStart()">&#9654; Start</button>
+        <button class="btn-plc stop"  onclick="cmdStop()">&#9632; Stop</button>
+    </div>
+</header>
+<main>
+    <div id="loops-section"></div>
+    <section id="events-section">
+        <h2>Events</h2>
+        <div id="event-terminal"></div>
+    </section>
+</main>
+<script src="chart.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

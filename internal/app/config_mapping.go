@@ -5,6 +5,7 @@ import (
 
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/config"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/storage"
+	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/web"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/mqttx"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/pid"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/plc"
@@ -55,6 +56,14 @@ func mapStorageConfig(cfg config.Config) storage.Config {
 		AppLogPath:          cfg.Storage.AppLogPath,
 		RetentionMaxSamples: cfg.Storage.RetentionMaxSamples,
 		WriteQueueSize:      queueSize,
+	}
+}
+
+func mapWebConfig(cfg config.Config) web.Config {
+	return web.Config{
+		Enabled: cfg.Web.Enabled,
+		Host:    cfg.Web.Host,
+		Port:    cfg.Web.Port,
 	}
 }
 

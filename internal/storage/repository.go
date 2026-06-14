@@ -9,26 +9,26 @@ import (
 
 // TelemetrySample is one control-loop measurement persisted per scan.
 type TelemetrySample struct {
-	Timestamp   time.Time
-	DeviceID    string
-	ScanCounter uint64
-	LoopName    string
-	SP          float64
-	PV          float64
-	MV          float64
-	Error       float64
-	Mode        string
-	Quality     string
-	Unit        string
+	Timestamp   time.Time `json:"timestamp"`
+	DeviceID    string    `json:"device_id"`
+	ScanCounter uint64    `json:"scan_counter"`
+	LoopName    string    `json:"loop_name"`
+	SP          float64   `json:"sp"`
+	PV          float64   `json:"pv"`
+	MV          float64   `json:"mv"`
+	Error       float64   `json:"error"`
+	Mode        string    `json:"mode"`
+	Quality     string    `json:"quality"`
+	Unit        string    `json:"unit"`
 }
 
 // EventRecord is a single application or runtime event.
 type EventRecord struct {
-	Timestamp time.Time
-	Level     string
-	Type      string
-	Message   string
-	Details   map[string]any
+	Timestamp time.Time      `json:"timestamp"`
+	Level     string         `json:"level"`
+	Type      string         `json:"type"`
+	Message   string         `json:"message"`
+	Details   map[string]any `json:"details,omitempty"`
 }
 
 // CommandRecord captures a command that was received and its outcome.
