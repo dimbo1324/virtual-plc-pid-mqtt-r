@@ -57,6 +57,7 @@ type StorageConfig struct {
 	EventsJSONLPath     string `json:"events_jsonl_path"`
 	AppLogPath          string `json:"app_log_path"`
 	RetentionMaxSamples int    `json:"retention_max_samples"`
+	WriteQueueSize      int    `json:"write_queue_size"`
 }
 
 type LoopConfig struct {

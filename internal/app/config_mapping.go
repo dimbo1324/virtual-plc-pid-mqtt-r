@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/config"
+	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/storage"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/mqttx"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/pid"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/plc"
@@ -38,6 +39,22 @@ func mapPLCConfig(config config.Config) plc.Config {
 		UIUpdateInterval:   time.Duration(config.PLC.UIUpdateIntervalMS) * time.Millisecond,
 		ScanOverrunWarning: time.Duration(config.PLC.ScanOverrunWarningMS) * time.Millisecond,
 		Loops:              loops,
+	}
+}
+
+func mapStorageConfig(cfg config.Config) storage.Config {
+	queueSize := cfg.Storage.WriteQueueSize
+	if queueSize <= 0 {
+		queueSize = storage.DefaultWriteQueueSize
+	}
+	return storage.Config{
+		Enabled:             cfg.Storage.Enabled,
+		Type:                cfg.Storage.Type,
+		SQLitePath:          cfg.Storage.SQLitePath,
+		EventsJSONLPath:     cfg.Storage.EventsJSONLPath,
+		AppLogPath:          cfg.Storage.AppLogPath,
+		RetentionMaxSamples: cfg.Storage.RetentionMaxSamples,
+		WriteQueueSize:      queueSize,
 	}
 }
 

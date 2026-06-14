@@ -12,8 +12,11 @@ coverage.out
 /logs/*
 !/logs/.gitkeep
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
+*.jsonl
 *.log
 
 # Environment files
