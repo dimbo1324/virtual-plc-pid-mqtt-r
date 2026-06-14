@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "stage/**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  ci:
+    name: Test & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify modules
+        run: go mod verify
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Unformatted files detected:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Run tests with race detector
+        run: go test -race -count=1 ./...
+
+      - name: Build binary
+        run: go build -o /dev/null ./cmd/vplc
+
+      - name: Validate default config
+        run: go run ./cmd/vplc --validate-config --config configs/default.json
+
+      - name: Check for vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        continue-on-error: true

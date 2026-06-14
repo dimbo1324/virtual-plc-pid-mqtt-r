@@ -62,7 +62,13 @@ func Open(ctx context.Context, cfg Config) (*Store, error) {
 }
 
 // Close releases the database connection.
+// It checkpoints the WAL and switches journal mode to DELETE so the -wal and
+// -shm files are merged and removed before the handle is closed. This prevents
+// "directory not empty" errors when the caller removes the database directory
+// (common in tests on Windows).
 func (s *Store) Close() error {
+	_, _ = s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE);")
+	_, _ = s.db.Exec("PRAGMA journal_mode=DELETE;")
 	if err := s.db.Close(); err != nil {
 		return fmt.Errorf("close storage db: %w", err)
 	}

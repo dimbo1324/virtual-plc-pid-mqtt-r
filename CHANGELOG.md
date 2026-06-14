@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-06-14
 
 ### Added
 
@@ -45,3 +45,13 @@
 - Fan-out extended in `internal/app` to deliver events and snapshots to both the storage recorder and the web SSE broker.
 - `web.enabled` defaults to `true`; binds to `127.0.0.1:8080`.
 - `internal/web` package with 24 tests covering API handlers, SSE, validation helpers, and config.
+- Stage 09: tests, CI, build and release hardening.
+- GitHub Actions CI workflow (`.github/workflows/ci.yml`): format, vet, race-detector tests, build, config validation, optional vulnerability scan.
+- Smoke test package (`tests/smoke/`) exercising the full app stack without external services.
+- Additional unit tests: `internal/app` helper functions, `internal/web` manual-output and inject-disturbance handlers, `pkg/mqttx` command parsing edge cases.
+- `scripts/smoke.ps1` and `scripts/smoke.sh`: build, validate, and run smoke tests.
+- `scripts/release.ps1` and `scripts/release.sh`: cross-compile release binaries with version ldflags.
+- Documentation: `docs/testing.md`, `docs/build_release.md`, `docs/ci.md`.
+- `.gitattributes` enforcing LF line endings for all text files (CRLF for PowerShell/batch).
+- `.gitignore` updated to exclude `/release/` directory.
+- `internal/storage.Store.Close()` now checkpoints WAL before closing to prevent orphaned `-wal`/`-shm` files on Windows.

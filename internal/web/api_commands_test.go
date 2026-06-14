@@ -108,3 +108,54 @@ func TestCommandResetLoop_Valid(t *testing.T) {
 		t.Errorf("valid reset-loop = %d, want 200", res.StatusCode)
 	}
 }
+
+func TestCommandManualOutput_Valid(t *testing.T) {
+	ts, _ := handlerTest(t)
+	body, _ := json.Marshal(map[string]any{"loop": "test", "value": 42.0})
+	res, err := http.Post(ts.URL+"/api/commands/manual-output", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST /api/commands/manual-output: %v", err)
+	}
+	defer res.Body.Close()
+	// The command reaches the handler; runtime may accept or reject based on mode.
+	if res.StatusCode == http.StatusNotFound {
+		t.Errorf("manual-output endpoint not registered, got 404")
+	}
+}
+
+func TestCommandManualOutput_InvalidBody(t *testing.T) {
+	ts, _ := handlerTest(t)
+	res, err := http.Post(ts.URL+"/api/commands/manual-output", "application/json", bytes.NewBufferString("not-json"))
+	if err != nil {
+		t.Fatalf("POST /api/commands/manual-output: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Errorf("invalid body = %d, want 400", res.StatusCode)
+	}
+}
+
+func TestCommandInjectDisturbance_Valid(t *testing.T) {
+	ts, _ := handlerTest(t)
+	body, _ := json.Marshal(map[string]any{"loop": "test", "amplitude": 2.0, "duration_seconds": 5.0})
+	res, err := http.Post(ts.URL+"/api/commands/inject-disturbance", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST /api/commands/inject-disturbance: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("valid inject-disturbance = %d, want 200", res.StatusCode)
+	}
+}
+
+func TestCommandInjectDisturbance_InvalidBody(t *testing.T) {
+	ts, _ := handlerTest(t)
+	res, err := http.Post(ts.URL+"/api/commands/inject-disturbance", "application/json", bytes.NewBufferString("not-json"))
+	if err != nil {
+		t.Fatalf("POST /api/commands/inject-disturbance: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Errorf("invalid body = %d, want 400", res.StatusCode)
+	}
+}

@@ -11,7 +11,7 @@ Do not connect this simulator directly to real actuators or safety-critical syst
 
 ## Current Status
 
-Stages 01-08 are implemented:
+Stages 01-09 are implemented:
 
 - JSON configuration and CLI foundation
 - Reusable PID controller package
@@ -26,8 +26,11 @@ Stages 01-08 are implemented:
   - Live PV/SP/MV trend charts (Canvas, 300-point rolling buffer)
   - Server-Sent Events stream for real-time updates
   - REST API for snapshot, status, history, and commands
+- **GitHub Actions CI** (format, vet, race-detector tests, build, config validation)
+- **Smoke and release scripts** for Windows and Linux/macOS
+- **Comprehensive test suite** across all packages with race-detector coverage
 
-CI, authentication, TLS setup, and real equipment communication are outside the
+Authentication, TLS setup, and real equipment communication are outside the
 current implementation.
 
 ## Architecture
@@ -210,9 +213,16 @@ for APIs, payloads, commands, and lifecycle details.
 gofmt -w .
 go mod tidy
 go mod verify
-go test ./...
+go test -race ./...
 go vet ./...
 go build -o dist/vplc ./cmd/vplc
+```
+
+Run smoke checks (build + config validation + smoke tests):
+
+```bash
+./scripts/smoke.sh      # Linux / macOS
+.\scripts\smoke.ps1     # Windows
 ```
 
 Optional broker integration:
@@ -227,11 +237,33 @@ Windows build:
 go build -o dist\vplc.exe .\cmd\vplc
 ```
 
+## CI
+
+GitHub Actions runs on every push to `main` and `stage/**`:
+
+- Format check (`gofmt`)
+- Static analysis (`go vet`)
+- Full test suite with race detector (`go test -race -count=1 ./...`)
+- Binary build
+- Config validation
+- Vulnerability scan (non-blocking)
+
+See [CI documentation](docs/ci.md) for details and local simulation commands.
+
+## Release
+
+```bash
+./scripts/release.sh 0.1.0 linux amd64
+.\scripts\release.ps1 -Version 0.1.0 -GOOS windows -GOARCH amd64
+```
+
+See [Build and Release Guide](docs/build_release.md).
+
 ## Roadmap
 
-1. Foundation, PID, simulator, PLC runtime, MQTT, and local storage: completed.
-2. Next: `stage-08-local-web-dashboard` — embedded HTTP/SSE dashboard.
-3. Later: portfolio polish, export CLI, and CI pipeline.
+All planned stages (01-09) are implemented. The project is at portfolio-ready state.
 
 Development conventions and release checks are described in the
 [Developer Guide](docs/developer_guide.md).
+
+Testing conventions are documented in [Testing Guide](docs/testing.md).

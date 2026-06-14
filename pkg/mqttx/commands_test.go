@@ -56,3 +56,62 @@ func TestParseCommandAllowsOptionalCommandID(t *testing.T) {
 		t.Fatalf("command = %+v", command)
 	}
 }
+
+func TestParseCommand_ManualOutput(t *testing.T) {
+	payload := `{"command":"set_manual_output","loop":"pressure","value":55.0}`
+	command, err := ParseCommand([]byte(payload))
+	if err != nil {
+		t.Fatalf("ParseCommand() error = %v", err)
+	}
+	if command.Command != plc.CommandSetManualOutput || command.Loop != "pressure" {
+		t.Fatalf("command = %+v", command)
+	}
+	if command.Value == nil || *command.Value != 55.0 {
+		t.Fatalf("value = %v, want 55.0", command.Value)
+	}
+}
+
+func TestParseCommand_InjectDisturbance(t *testing.T) {
+	payload := `{"command":"inject_disturbance","loop":"temperature","value":3.5,"duration_seconds":10.0}`
+	command, err := ParseCommand([]byte(payload))
+	if err != nil {
+		t.Fatalf("ParseCommand() error = %v", err)
+	}
+	if command.Command != plc.CommandInjectDisturbance || command.Loop != "temperature" {
+		t.Fatalf("command = %+v", command)
+	}
+	if command.Value == nil || *command.Value != 3.5 {
+		t.Fatalf("value = %v, want 3.5", command.Value)
+	}
+	if command.DurationSeconds == nil || *command.DurationSeconds != 10.0 {
+		t.Fatalf("duration_seconds = %v, want 10.0", command.DurationSeconds)
+	}
+}
+
+func TestParseCommand_ResetLoop(t *testing.T) {
+	payload := `{"command":"reset_loop","loop":"level"}`
+	command, err := ParseCommand([]byte(payload))
+	if err != nil {
+		t.Fatalf("ParseCommand() error = %v", err)
+	}
+	if command.Command != plc.CommandResetLoop || command.Loop != "level" {
+		t.Fatalf("command = %+v", command)
+	}
+}
+
+func TestCommandIDFromPayload(t *testing.T) {
+	cases := []struct {
+		payload string
+		want    string
+	}{
+		{`{"command_id":"abc-123","command":"start_plc"}`, "abc-123"},
+		{`{"command":"start_plc"}`, ""},
+		{`not json`, ""},
+	}
+	for _, tc := range cases {
+		got := commandIDFromPayload([]byte(tc.payload))
+		if got != tc.want {
+			t.Errorf("commandIDFromPayload(%q) = %q, want %q", tc.payload, got, tc.want)
+		}
+	}
+}
