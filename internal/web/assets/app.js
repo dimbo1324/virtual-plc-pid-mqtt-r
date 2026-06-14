@@ -4,7 +4,8 @@
 const charts = {};
 const loopCards = {};
 let uptimeInterval = null;
-let uptimeStart = null;
+// uptimeBase is the ISO timestamp received from /api/status; used to tick uptime locally.
+let uptimeBase = null;
 
 // ── SSE connection ──────────────────────────────────────────────────────────
 
@@ -21,20 +22,14 @@ function initSSE() {
             reconnectMs = 1000;
         });
 
+        // plc_event carries a plc.Event (log entry: level, message, timestamp, details).
+        // It does NOT carry loop state — use snapshot for that.
         es.addEventListener('plc_event', e => {
-            try {
-                const ev = JSON.parse(e.data);
-                handlePLCEvent(ev);
-                appendEvent(ev);
-            } catch (_) {}
+            try { appendEvent(JSON.parse(e.data)); } catch (_) {}
         });
 
-        es.addEventListener('heartbeat', e => {
+        es.addEventListener('heartbeat', () => {
             if (dot) { dot.className = 'dot connected'; dot.title = t('header.conn.ok'); }
-            try {
-                const hb = JSON.parse(e.data);
-                if (hb.ts && !uptimeStart) uptimeStart = new Date(hb.ts);
-            } catch (_) {}
         });
 
         es.onerror = () => {
@@ -49,6 +44,8 @@ function initSSE() {
 }
 
 // ── Snapshot handler ────────────────────────────────────────────────────────
+// snapshot carries plc.Snapshot: {device_id, plc:{state,…}, loops:{name:LoopSnapshot}}
+// It is broadcast on every UIUpdateInterval (~200 ms), driving real-time chart updates.
 
 function handleSnapshot(snap) {
     updateHeader(snap);
@@ -63,57 +60,63 @@ function handleSnapshot(snap) {
     }
 }
 
-function handlePLCEvent(ev) {
-    const loops = ev.loops || {};
-    for (const [name, loop] of Object.entries(loops)) {
-        if (loopCards[name]) updateLoopCard(loopCards[name], loop);
-        if (charts[name]) charts[name].push(loop.pv ?? 0, loop.sp ?? 0, loop.mv ?? 0);
-    }
-    if (ev.plc) updatePLCState(ev.plc.state);
-}
-
 function updateHeader(snap) {
     const devEl = document.getElementById('device-id');
     if (devEl) devEl.textContent = snap.device_id || '—';
-    if (snap.plc) updatePLCState(snap.plc.state);
-
-    // Start uptime clock from snapshot timestamp
-    if (snap.plc?.started_at) {
-        uptimeStart = new Date(snap.plc.started_at);
-    }
+    if (snap.plc) updatePLCState(String(snap.plc.state || ''));
 }
 
 function updatePLCState(state) {
     const stateEl = document.getElementById('plc-state');
     if (!stateEl) return;
-    const label = state === 'running' ? t('header.state.running')
-        : state === 'stopped' ? t('header.state.stopped')
-        : t('header.state.unknown');
+    const label = state === 'running'  ? t('header.state.running')
+        : state === 'stopped'  ? t('header.state.stopped')
+        : state ? state.toUpperCase()
+        : '—';
     stateEl.textContent = label;
     stateEl.className = 'state-badge ' + (state || '');
 }
 
-// ── Uptime clock ────────────────────────────────────────────────────────────
+// ── Uptime ──────────────────────────────────────────────────────────────────
 
 function formatUptime(ms) {
     if (ms < 0) ms = 0;
     const s = Math.floor(ms / 1000) % 60;
     const m = Math.floor(ms / 60000) % 60;
     const h = Math.floor(ms / 3600000);
-    return h > 0
-        ? `${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`
-        : `${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
+    if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+    return `${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
 }
 
 function tickUptime() {
     const el = document.getElementById('uptime');
-    if (!el) return;
-    if (uptimeStart) {
-        el.textContent = formatUptime(Date.now() - uptimeStart.getTime());
-    }
+    if (!el || !uptimeBase) return;
+    el.textContent = formatUptime(Date.now() - uptimeBase);
+}
+
+// ── Initial status load ─────────────────────────────────────────────────────
+// Populates header state before the first SSE snapshot arrives.
+
+async function loadStatus() {
+    try {
+        const res = await fetch('/api/status');
+        if (!res.ok) return;
+        const s = await res.json();
+        const devEl = document.getElementById('device-id');
+        if (devEl) devEl.textContent = s.device_id || '—';
+        if (s.state) updatePLCState(s.state);
+        // server_time lets us compute uptime client-side from the server-reported value
+        if (s.server_time && s.uptime) {
+            // Parse the Go duration string (e.g. "5m3s") as a rough estimate
+            const el = document.getElementById('uptime');
+            if (el) el.textContent = s.uptime;
+        }
+    } catch (_) {}
 }
 
 // ── Loop card creation ──────────────────────────────────────────────────────
+// LoopSnapshot JSON fields: name, display_name, unit, sp, pv, mv,
+//   error, mode, quality, enabled, kp, ki, kd
 
 function createLoopCard(container, name, loop) {
     const displayName = loop.display_name || name;
@@ -147,8 +150,8 @@ function createLoopCard(container, name, loop) {
 <div class="chart-wrap">
   <canvas class="trend-canvas"></canvas>
   <div class="chart-toolbar">
-    <button class="chart-btn-fs"    data-i18n-title="chart.fullscreen" title="${t('chart.fullscreen')}">⛶</button>
-    <button class="chart-btn-reset" data-i18n-title="chart.reset"      title="${t('chart.reset')}">↺</button>
+    <button class="chart-btn-fs"    title="${t('chart.fullscreen')}" data-i18n-title="chart.fullscreen">⛶</button>
+    <button class="chart-btn-reset" title="${t('chart.reset')}"      data-i18n-title="chart.reset">↺</button>
     <button class="chart-btn-png"   data-i18n="chart.png">${t('chart.png')}</button>
     <button class="chart-btn-pdf"   data-i18n="chart.pdf">${t('chart.pdf')}</button>
   </div>
@@ -175,11 +178,21 @@ function createLoopCard(container, name, loop) {
     <span data-i18n="card.gains">${t('card.gains')}</span>
   </button>
   <div class="gains-panel">
-    <div class="gain-item"><span class="gain-label" data-i18n="card.kp">${t('card.kp')}</span><span class="gain-val kp-val">—</span></div>
-    <div class="gain-item"><span class="gain-label" data-i18n="card.ki">${t('card.ki')}</span><span class="gain-val ki-val">—</span></div>
-    <div class="gain-item"><span class="gain-label" data-i18n="card.kd">${t('card.kd')}</span><span class="gain-val kd-val">—</span></div>
+    <div class="gain-item">
+      <span class="gain-label" data-i18n="card.kp">${t('card.kp')}</span>
+      <span class="gain-val kp-val">—</span>
+    </div>
+    <div class="gain-item">
+      <span class="gain-label" data-i18n="card.ki">${t('card.ki')}</span>
+      <span class="gain-val ki-val">—</span>
+    </div>
+    <div class="gain-item">
+      <span class="gain-label" data-i18n="card.kd">${t('card.kd')}</span>
+      <span class="gain-val kd-val">—</span>
+    </div>
   </div>
-</div>`;
+</div>
+<div class="card-resize-handle" title="Drag to resize"></div>`;
 
     container.appendChild(card);
 
@@ -188,33 +201,37 @@ function createLoopCard(container, name, loop) {
     const chart = createTrendChart(canvas, displayName);
     charts[name] = chart;
 
-    // Chart toolbar buttons
+    // Chart toolbar
     card.querySelector('.chart-btn-fs').addEventListener('click', () => chart.enterFullscreen());
     card.querySelector('.chart-btn-reset').addEventListener('click', () => chart.resetView());
     card.querySelector('.chart-btn-png').addEventListener('click', () => chart.exportPNG());
     card.querySelector('.chart-btn-pdf').addEventListener('click', () => chart.exportPDF());
 
-    // Loop control buttons
+    // Setpoint
     const spInput = card.querySelector('.sp-input');
     card.querySelector('.sp-btn').addEventListener('click', () => {
         const v = parseFloat(spInput.value);
         if (!isNaN(v)) postCommand('setpoint', { loop: name, setpoint: v });
     });
     spInput.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { const v = parseFloat(spInput.value); if (!isNaN(v)) postCommand('setpoint', { loop: name, setpoint: v }); }
+        if (e.key === 'Enter') {
+            const v = parseFloat(spInput.value);
+            if (!isNaN(v)) postCommand('setpoint', { loop: name, setpoint: v });
+        }
     });
 
+    // Mode
     const modeSelect = card.querySelector('.mode-select');
     card.querySelector('.mode-btn').addEventListener('click', () => {
         postCommand('mode', { loop: name, mode: modeSelect.value });
     });
 
+    // Disturbance and reset — use hyphens matching the Go route registration
     card.querySelector('.disturbance-btn').addEventListener('click', () => {
-        postCommand('inject_disturbance', { loop: name, amplitude: 5, duration_seconds: 30 });
+        postCommand('inject-disturbance', { loop: name, amplitude: 5, duration_seconds: 30 });
     });
-
     card.querySelector('.reset-btn').addEventListener('click', () => {
-        postCommand('reset_loop', { loop: name });
+        postCommand('reset-loop', { loop: name });
     });
 
     // Gains toggle
@@ -225,12 +242,13 @@ function createLoopCard(container, name, loop) {
         gainsToggle.classList.toggle('open', open);
     });
 
-    // Populate gains if available
-    if (loop.pid) {
-        card.querySelector('.kp-val').textContent = loop.pid.kp ?? '—';
-        card.querySelector('.ki-val').textContent = loop.pid.ki ?? '—';
-        card.querySelector('.kd-val').textContent = loop.pid.kd ?? '—';
-    }
+    // PID gains are directly on LoopSnapshot (kp, ki, kd — not nested under .pid)
+    card.querySelector('.kp-val').textContent = loop.kp ?? '—';
+    card.querySelector('.ki-val').textContent = loop.ki ?? '—';
+    card.querySelector('.kd-val').textContent = loop.kd ?? '—';
+
+    // Per-card horizontal resize handle
+    initCardResize(card, card.querySelector('.card-resize-handle'));
 
     return card;
 }
@@ -244,8 +262,8 @@ function updateLoopCard(card, loop) {
 
     const badge = q('.loop-mode-badge');
     if (badge) {
-        const modeKey = 'card.' + (loop.mode || 'auto');
-        badge.textContent = t(modeKey) || loop.mode || '';
+        // mode is e.g. "auto" → translation key "card.auto"
+        badge.textContent = t('card.' + (loop.mode || 'auto')) || (loop.mode || '');
         badge.className = 'loop-mode-badge mode-' + (loop.mode || '');
     }
 
@@ -253,13 +271,45 @@ function updateLoopCard(card, loop) {
     if (sel && document.activeElement !== sel) sel.value = loop.mode || 'auto';
 }
 
+// ── Per-card horizontal resize ───────────────────────────────────────────────
+
+function initCardResize(card, handle) {
+    if (!handle) return;
+    let dragging = false;
+    let startX = 0;
+    let startW = 0;
+
+    handle.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        dragging = true;
+        startX = e.clientX;
+        startW = card.offsetWidth;
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
+    });
+
+    window.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const newW = Math.max(300, Math.min(900, startW + (e.clientX - startX)));
+        card.style.width = newW + 'px';
+    });
+
+    window.addEventListener('mouseup', e => {
+        if (!dragging || e.button !== 0) return;
+        dragging = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+    });
+}
+
 // ── Event terminal ──────────────────────────────────────────────────────────
+// plc.Event JSON: {timestamp, level, event_type, message, details}
 
 function appendEvent(ev) {
     const terminal = document.getElementById('event-terminal');
     if (!terminal) return;
 
-    // Remove empty placeholder
     const placeholder = terminal.querySelector('.events-empty');
     if (placeholder) placeholder.remove();
 
@@ -267,16 +317,8 @@ function appendEvent(ev) {
     const level = ev.level || 'info';
     entry.className = 'event-entry level-' + level;
     const ts = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '—';
-
-    // Build compact per-loop summary if available
-    let msg = ev.message || '';
-    if (!msg && ev.loops) {
-        msg = Object.entries(ev.loops)
-            .map(([n, l]) => `${n}: PV=${(l.pv ?? 0).toFixed(1)} SP=${(l.sp ?? 0).toFixed(1)} MV=${(l.mv ?? 0).toFixed(1)}%`)
-            .join('  |  ');
-    }
-
-    entry.textContent = `[${ts}] ${msg}`;
+    const type = ev.event_type ? `[${ev.event_type}] ` : '';
+    entry.textContent = `[${ts}] ${type}${ev.message || ''}`;
     terminal.appendChild(entry);
 
     while (terminal.children.length > 200) terminal.removeChild(terminal.firstChild);
@@ -307,13 +349,12 @@ async function postCommand(path, body = {}) {
     }
 }
 
-// ── Resizable panels ─────────────────────────────────────────────────────────
+// ── Panel resize handle ──────────────────────────────────────────────────────
 
 function initResizeHandle() {
     const handle    = document.getElementById('resize-handle');
-    const mainPanel = document.getElementById('main-panel');
     const evPanel   = document.getElementById('events-panel');
-    if (!handle || !mainPanel || !evPanel) return;
+    if (!handle || !evPanel) return;
 
     let dragging = false;
     let startX = 0;
@@ -365,7 +406,6 @@ function closeManual() {
 function renderManualTab(tab) {
     const content = document.getElementById('manual-content');
     if (content) content.innerHTML = getManualContent(tab);
-
     document.querySelectorAll('.drawer-tab').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tab);
     });
@@ -375,56 +415,47 @@ function initManualDrawer() {
     document.getElementById('btn-manual')?.addEventListener('click', () => openManual());
     document.getElementById('btn-close-manual')?.addEventListener('click', closeManual);
     document.getElementById('drawer-overlay')?.addEventListener('click', closeManual);
-
     document.querySelectorAll('.drawer-tab').forEach(btn => {
         btn.addEventListener('click', () => {
             currentTab = btn.dataset.tab;
             renderManualTab(currentTab);
         });
     });
-
-    // Render initial content
     renderManualTab(currentTab);
 }
 
-// ── Language toggle ──────────────────────────────────────────────────────────
+// ── Language toggle ───────────────────────────────────────────────────────────
 
 function initLangToggle() {
     const btn = document.getElementById('btn-lang');
     if (!btn) return;
 
-    // Apply persisted language on load
     setLanguage(getCurrentLang());
 
     btn.addEventListener('click', () => {
         const next = getCurrentLang() === 'en' ? 'ru' : 'en';
         setLanguage(next);
-        // Re-render manual if open
         renderManualTab(currentTab);
-        // Refresh event log placeholder if empty
         const placeholder = document.querySelector('#event-terminal .events-empty');
         if (placeholder) placeholder.textContent = t('events.empty');
-    });
-
-    document.addEventListener('langchange', () => {
-        // Update PLC state label after language change
+        // Refresh per-card mode badges after language change
+        for (const card of Object.values(loopCards)) {
+            const badge = card.querySelector('.loop-mode-badge');
+            if (badge) {
+                const mode = (badge.className.match(/mode-(\w+)/) || [])[1] || 'auto';
+                badge.textContent = t('card.' + mode) || mode;
+            }
+        }
+        // Refresh plc state label
         const stateEl = document.getElementById('plc-state');
         if (stateEl) {
             const cls = [...stateEl.classList].find(c => c !== 'state-badge') || '';
             updatePLCState(cls);
         }
-        // Re-render loop card mode badges and i18n strings inside cards
-        for (const [name, card] of Object.entries(loopCards)) {
-            const badge = card.querySelector('.loop-mode-badge');
-            if (badge) {
-                const mode = badge.className.replace(/.*mode-/, '').trim();
-                badge.textContent = t('card.' + mode) || mode;
-            }
-        }
     });
 }
 
-// ── Header buttons ───────────────────────────────────────────────────────────
+// ── Header buttons ────────────────────────────────────────────────────────────
 
 function initHeaderButtons() {
     document.getElementById('btn-start')?.addEventListener('click', () => postCommand('start'));
@@ -432,7 +463,7 @@ function initHeaderButtons() {
     document.getElementById('btn-clear-events')?.addEventListener('click', clearEvents);
 }
 
-// ── Utility ──────────────────────────────────────────────────────────────────
+// ── Utility ───────────────────────────────────────────────────────────────────
 
 function escHtml(s) {
     return String(s)
@@ -442,14 +473,14 @@ function escHtml(s) {
         .replace(/"/g, '&quot;');
 }
 
-// ── Init ─────────────────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────────────────
 
 window.addEventListener('DOMContentLoaded', () => {
     initLangToggle();
     initHeaderButtons();
     initManualDrawer();
     initResizeHandle();
+    loadStatus();
     initSSE();
-
     uptimeInterval = setInterval(tickUptime, 1000);
 });
