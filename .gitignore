@@ -7,11 +7,9 @@
 *.out
 coverage.out
 
-# Local data and logs
+# Local data and logs (directories created at runtime by the application)
 /data/*
-!/data/.gitkeep
 /logs/*
-!/logs/.gitkeep
 *.db
 *.db-shm
 *.db-wal
@@ -36,9 +34,8 @@ tmp/
 temp/
 *.tmp
 
-# Node future web tooling
+# Node / future web tooling
 node_modules/
-web/dist/
 
 # Docker/export artifacts
 *.tar

@@ -141,3 +141,45 @@ func TestGetSnapshot(t *testing.T) {
 		t.Errorf("GET /api/snapshot = %d, want 200", res.StatusCode)
 	}
 }
+
+func TestServer_StartShutdown(t *testing.T) {
+	rt := testRuntime(t)
+	// Use a distinct port to avoid colliding with testServer's 8181.
+	cfg := web.Config{Enabled: true, Host: "127.0.0.1", Port: 8182}
+	deps := web.Deps{
+		Runtime: rt,
+		CommandHandler: func(ctx context.Context, cmd plc.Command) (plc.Event, error) {
+			return rt.ApplyCommand(cmd)
+		},
+		EventsCh:    make(chan plc.Event, 4),
+		SnapshotsCh: make(chan plc.Snapshot, 4),
+	}
+	s := web.NewServer(cfg, deps, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- s.Start(ctx) }()
+
+	// Allow the server to bind before cancelling.
+	time.Sleep(40 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-errCh:
+		// Start returns nil when ctx is cancelled (graceful shutdown path).
+		if err != nil {
+			t.Errorf("Start() = %v, want nil after cancel", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("Start() did not return after context cancel")
+	}
+}
+
+func TestServer_Addr(t *testing.T) {
+	s := testServer(t)
+	addr := s.Addr()
+	if addr == "" {
+		t.Error("Addr() returned empty string")
+	}
+}
