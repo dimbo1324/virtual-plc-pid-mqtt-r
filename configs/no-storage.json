@@ -1,0 +1,127 @@
+{
+  "app": {
+    "name": "virtual-plc-pid-mqtt-r",
+    "device_id": "vplc_001",
+    "auto_start": true,
+    "open_browser": false
+  },
+  "plc": {
+    "scan_interval_ms": 500,
+    "publish_interval_ms": 1000,
+    "ui_update_interval_ms": 250,
+    "scan_overrun_warning_ms": 500
+  },
+  "mqtt": {
+    "enabled": true,
+    "broker_url": "tcp://localhost:1883",
+    "client_id": "virtual-plc-pid-mqtt-r-vplc-001",
+    "username": "",
+    "password": "",
+    "base_topic": "vplc/vplc_001",
+    "qos": 0,
+    "connect_timeout_seconds": 5,
+    "reconnect_interval_seconds": 3
+  },
+  "web": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 8080
+  },
+  "storage": {
+    "enabled": false,
+    "type": "sqlite",
+    "sqlite_path": "data/history.db",
+    "events_jsonl_path": "logs/events.jsonl",
+    "app_log_path": "logs/app.log",
+    "retention_max_samples": 100000,
+    "write_queue_size": 256,
+    "fallback_on_error": false,
+    "fallback_type": ""
+  },
+  "loops": [
+    {
+      "name": "pressure",
+      "display_name": "Pressure",
+      "unit": "bar",
+      "enabled": true,
+      "mode": "auto",
+      "setpoint": 6.0,
+      "setpoint_min": 0.0,
+      "setpoint_max": 12.0,
+      "pid": {
+        "kp": 3.0,
+        "ki": 0.25,
+        "kd": 0.05,
+        "bias": 0.0,
+        "output_min": 0.0,
+        "output_max": 100.0
+      },
+      "process": {
+        "initial_pv": 4.0,
+        "min": 0.0,
+        "max": 12.0,
+        "base": 0.0,
+        "gain": 0.1,
+        "tau_seconds": 15.0,
+        "noise_stddev": 0.03,
+        "random_disturbances": true
+      }
+    },
+    {
+      "name": "temperature",
+      "display_name": "Temperature",
+      "unit": "C",
+      "enabled": true,
+      "mode": "auto",
+      "setpoint": 180.0,
+      "setpoint_min": 0.0,
+      "setpoint_max": 250.0,
+      "pid": {
+        "kp": 1.8,
+        "ki": 0.1,
+        "kd": 0.02,
+        "bias": 0.0,
+        "output_min": 0.0,
+        "output_max": 100.0
+      },
+      "process": {
+        "initial_pv": 80.0,
+        "min": 0.0,
+        "max": 250.0,
+        "base": 20.0,
+        "gain": 2.0,
+        "tau_seconds": 60.0,
+        "noise_stddev": 0.2,
+        "random_disturbances": true
+      }
+    },
+    {
+      "name": "level",
+      "display_name": "Level",
+      "unit": "%",
+      "enabled": true,
+      "mode": "auto",
+      "setpoint": 50.0,
+      "setpoint_min": 0.0,
+      "setpoint_max": 100.0,
+      "pid": {
+        "kp": 2.5,
+        "ki": 0.15,
+        "kd": 0.03,
+        "bias": 0.0,
+        "output_min": 0.0,
+        "output_max": 100.0
+      },
+      "process": {
+        "initial_pv": 45.0,
+        "min": 0.0,
+        "max": 100.0,
+        "base": 0.0,
+        "gain": 1.0,
+        "tau_seconds": 25.0,
+        "noise_stddev": 0.1,
+        "random_disturbances": true
+      }
+    }
+  ]
+}

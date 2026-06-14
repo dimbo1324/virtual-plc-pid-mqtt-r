@@ -183,3 +183,28 @@ func TestServer_Addr(t *testing.T) {
 		t.Error("Addr() returned empty string")
 	}
 }
+
+func TestHealthz(t *testing.T) {
+	ts, _ := handlerTest(t)
+	res, err := http.Get(ts.URL + "/healthz")
+	if err != nil {
+		t.Fatalf("GET /healthz: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("GET /healthz = %d, want 200", res.StatusCode)
+	}
+}
+
+func TestReadyz_NotRunning(t *testing.T) {
+	ts, _ := handlerTest(t)
+	// PLC is not started in tests, so /readyz should return 503.
+	res, err := http.Get(ts.URL + "/readyz")
+	if err != nil {
+		t.Fatalf("GET /readyz: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("GET /readyz = %d, want 503 (PLC not started)", res.StatusCode)
+	}
+}

@@ -58,6 +58,8 @@ type StorageConfig struct {
 	AppLogPath          string `json:"app_log_path"`
 	RetentionMaxSamples int    `json:"retention_max_samples"`
 	WriteQueueSize      int    `json:"write_queue_size"`
+	FallbackOnError     bool   `json:"fallback_on_error"`
+	FallbackType        string `json:"fallback_type"`
 }
 
 type LoopConfig struct {

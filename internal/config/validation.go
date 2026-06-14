@@ -61,6 +61,13 @@ func (c Config) Validate() error {
 		if strings.TrimSpace(c.Storage.AppLogPath) == "" {
 			return fmt.Errorf("storage.app_log_path must not be empty when storage is enabled")
 		}
+		if c.Storage.FallbackOnError {
+			switch c.Storage.FallbackType {
+			case "jsonl", "noop":
+			default:
+				return fmt.Errorf("storage.fallback_type must be \"jsonl\" or \"noop\" when fallback_on_error is true")
+			}
+		}
 	}
 	if len(c.Loops) == 0 {
 		return fmt.Errorf("at least one loop must be configured")

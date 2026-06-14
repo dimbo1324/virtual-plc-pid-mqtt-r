@@ -1,0 +1,25 @@
+# Version control
+.git
+.gitignore
+
+# Build outputs
+dist/
+bin/
+
+# Runtime data (mounted as Docker volumes)
+data/
+logs/
+
+# Documentation and scripts (not needed in image)
+docs/
+docker/
+
+# Development files
+*.md
+.github/
+tests/
+scripts/
+
+# OS artefacts
+.DS_Store
+Thumbs.db
