@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/storage"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/mqttx"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/plc"
 )
@@ -21,23 +23,50 @@ func (a *App) RunRuntime(ctx context.Context) error {
 		return err
 	}
 
+	// --- Storage initialization ---
+	var rec *storage.Recorder
+	var store *storage.Store
+	var jsonlWriter *storage.JSONLWriter
+
+	storageCfg := mapStorageConfig(a.Config)
+	if storageCfg.Enabled {
+		var err error
+		store, err = storage.Open(ctx, storageCfg)
+		if err != nil {
+			// Fail startup clearly when storage is enabled but cannot be opened.
+			return fmt.Errorf("open storage: %w", err)
+		}
+		jsonlWriter, err = storage.NewJSONLWriter(storageCfg.EventsJSONLPath)
+		if err != nil {
+			_ = store.Close()
+			return fmt.Errorf("open jsonl writer: %w", err)
+		}
+		rec = storage.NewRecorder(store, jsonlWriter, storageCfg.WriteQueueSize, a.Logger)
+		rec.Start(ctx)
+		a.Logger.Info("storage initialized", "path", storageCfg.SQLitePath)
+	}
+
+	// --- PLC runtime ---
 	plcConfig := mapPLCConfig(a.Config)
 	runtime, err := plc.NewRuntime(plcConfig)
 	if err != nil {
+		a.closeStorage(store, jsonlWriter, rec)
 		return fmt.Errorf("create PLC runtime: %w", err)
 	}
 	if a.Config.App.AutoStart {
 		if err := runtime.Start(ctx); err != nil {
+			a.closeStorage(store, jsonlWriter, rec)
 			return fmt.Errorf("start PLC runtime: %w", err)
 		}
 	}
 
+	// --- MQTT client with command recording wrapper ---
 	mqttConfig := mapMQTTConfig(a.Config)
-	mqttClient, err := mqttx.New(mqttConfig, func(_ context.Context, command plc.Command) (plc.Event, error) {
-		return runtime.ApplyCommand(command)
-	})
+	commandHandler := a.buildCommandHandler(runtime, rec)
+	mqttClient, err := mqttx.New(mqttConfig, commandHandler)
 	if err != nil {
 		_ = runtime.Stop(context.Background())
+		a.closeStorage(store, jsonlWriter, rec)
 		return fmt.Errorf("create MQTT client: %w", err)
 	}
 
@@ -59,16 +88,28 @@ func (a *App) RunRuntime(ctx context.Context) error {
 			a.publishMQTTTelemetry(ctx, runtime, mqttClient, plcConfig.PublishInterval)
 		}()
 	}
+
+	// Forward runtime events to MQTT and storage.
 	background.Add(1)
 	go func() {
 		defer background.Done()
-		a.forwardRuntimeEvents(ctx, runtime, mqttClient)
+		a.forwardRuntimeEvents(ctx, runtime, mqttClient, rec)
 	}()
+
+	// Consume snapshot stream for storage (non-blocking; separate goroutine).
+	if rec != nil {
+		background.Add(1)
+		go func() {
+			defer background.Done()
+			a.consumeSnapshots(ctx, runtime, rec)
+		}()
+	}
 
 	a.Logger.Info("PLC runtime mode active",
 		"device_id", a.Config.App.DeviceID,
 		"state", runtime.State(),
 		"mqtt_enabled", mqttConfig.Enabled,
+		"storage_enabled", storageCfg.Enabled,
 	)
 	<-ctx.Done()
 
@@ -77,11 +118,113 @@ func (a *App) RunRuntime(ctx context.Context) error {
 	stopErr := runtime.Stop(shutdownCtx)
 	background.Wait()
 	mqttClient.Disconnect(250)
+
+	// Drain storage recorder, then close resources.
+	a.closeStorage(store, jsonlWriter, rec)
+
 	if stopErr != nil {
 		return fmt.Errorf("stop PLC runtime: %w", stopErr)
 	}
 	a.Logger.Info("runtime stopped gracefully")
 	return nil
+}
+
+// buildCommandHandler wraps runtime.ApplyCommand to record commands when
+// storage is enabled. It does not modify pkg/plc or pkg/mqttx.
+func (a *App) buildCommandHandler(runtime *plc.Runtime, rec *storage.Recorder) mqttx.CommandHandler {
+	return func(cmdCtx context.Context, command plc.Command) (plc.Event, error) {
+		event, err := runtime.ApplyCommand(command)
+
+		if rec == nil {
+			return event, err
+		}
+
+		status := "applied"
+		errMsg := ""
+		if err != nil {
+			status = "rejected"
+			errMsg = err.Error()
+		}
+
+		payloadJSON := buildCommandPayloadJSON(command)
+		cmdRecord := storage.CommandRecord{
+			Timestamp:    command.ReceivedAt,
+			CommandID:    command.CommandID,
+			Source:       command.Source,
+			CommandType:  string(command.Command),
+			LoopName:     command.Loop,
+			PayloadJSON:  payloadJSON,
+			Status:       status,
+			ErrorMessage: errMsg,
+		}
+		if cmdRecord.Timestamp.IsZero() {
+			cmdRecord.Timestamp = time.Now().UTC()
+		}
+		rec.RecordCommand(cmdRecord)
+
+		// Record PID tuning changes derived from the resulting event.
+		if err == nil && event.Type == plc.EventPIDTuningChanged {
+			a.recordPIDChange(rec, command, event)
+		}
+
+		return event, err
+	}
+}
+
+func buildCommandPayloadJSON(command plc.Command) string {
+	payload := map[string]any{
+		"command": command.Command,
+	}
+	if command.Loop != "" {
+		payload["loop"] = command.Loop
+	}
+	if command.CommandID != "" {
+		payload["command_id"] = command.CommandID
+	}
+	if command.Value != nil {
+		payload["value"] = *command.Value
+	}
+	if command.Kp != nil {
+		payload["kp"] = *command.Kp
+	}
+	if command.Ki != nil {
+		payload["ki"] = *command.Ki
+	}
+	if command.Kd != nil {
+		payload["kd"] = *command.Kd
+	}
+	if command.Mode != "" {
+		payload["mode"] = command.Mode
+	}
+	if command.ManualOutput != nil {
+		payload["manual_output"] = *command.ManualOutput
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+func (a *App) recordPIDChange(rec *storage.Recorder, command plc.Command, event plc.Event) {
+	change := storage.PIDChangeRecord{
+		Timestamp: event.Timestamp,
+		LoopName:  command.Loop,
+		Source:    command.Source,
+		CommandID: command.CommandID,
+	}
+	// New gains from the command (validated before reaching here).
+	if command.Kp != nil {
+		change.NewKp = *command.Kp
+	}
+	if command.Ki != nil {
+		change.NewKi = *command.Ki
+	}
+	if command.Kd != nil {
+		change.NewKd = *command.Kd
+	}
+	// Old gains are not exposed by the current PLC event — left as nil.
+	rec.RecordPIDChange(change)
 }
 
 func (a *App) retryInitialMQTTConnection(ctx context.Context, client *mqttx.Client, interval, connectTimeout time.Duration) {
@@ -124,12 +267,17 @@ func (a *App) publishMQTTTelemetry(ctx context.Context, runtime *plc.Runtime, cl
 	}
 }
 
-func (a *App) forwardRuntimeEvents(ctx context.Context, runtime *plc.Runtime, client *mqttx.Client) {
+func (a *App) forwardRuntimeEvents(ctx context.Context, runtime *plc.Runtime, client *mqttx.Client, rec *storage.Recorder) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case event := <-runtime.Events():
+			// Record to storage first (non-blocking).
+			if rec != nil {
+				storageEvent := plcEventToStorageRecord(event)
+				rec.RecordEvent(storageEvent)
+			}
 			// This is the application-owned fan-out point. Stage 07 can persist
 			// events here without adding storage dependencies to pkg/plc.
 			if client.IsConnected() && shouldPublishRuntimeEventToMQTT(event) {
@@ -141,6 +289,32 @@ func (a *App) forwardRuntimeEvents(ctx context.Context, runtime *plc.Runtime, cl
 	}
 }
 
+// consumeSnapshots reads from the runtime snapshot channel and submits each
+// snapshot to the recorder. This is a separate goroutine so MQTT telemetry
+// and storage operate independently.
+func (a *App) consumeSnapshots(ctx context.Context, runtime *plc.Runtime, rec *storage.Recorder) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case snap := <-runtime.Snapshots():
+			if !rec.RecordSnapshot(snap) {
+				a.Logger.Warn("storage snapshot queue full; sample dropped")
+			}
+		}
+	}
+}
+
+func plcEventToStorageRecord(event plc.Event) storage.EventRecord {
+	return storage.EventRecord{
+		Timestamp: event.Timestamp,
+		Level:     event.Level,
+		Type:      event.Type,
+		Message:   event.Message,
+		Details:   event.Details,
+	}
+}
+
 func shouldPublishRuntimeEventToMQTT(event plc.Event) bool {
 	if event.Details == nil {
 		return true
@@ -148,4 +322,20 @@ func shouldPublishRuntimeEventToMQTT(event plc.Event) bool {
 	// MQTT command responses are already published by pkg/mqttx. Skipping
 	// their mirrored runtime events prevents duplicate command outcomes.
 	return event.Details["source"] != "mqtt"
+}
+
+func (a *App) closeStorage(store *storage.Store, jsonlWriter *storage.JSONLWriter, rec *storage.Recorder) {
+	if rec != nil {
+		_ = rec.Stop(context.Background())
+	}
+	if jsonlWriter != nil {
+		if err := jsonlWriter.Close(); err != nil {
+			a.Logger.Warn("close jsonl writer", "error", err)
+		}
+	}
+	if store != nil {
+		if err := store.Close(); err != nil {
+			a.Logger.Warn("close storage", "error", err)
+		}
+	}
 }

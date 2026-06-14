@@ -11,18 +11,20 @@ Do not connect this simulator directly to real actuators or safety-critical syst
 
 ## Current Status
 
-Stages 01-06 are implemented:
+Stages 01-07 are implemented:
 
 - JSON configuration and CLI foundation
-- reusable PID controller package
-- deterministic synthetic process simulator
-- concurrent PLC runtime with real elapsed `dt`, snapshots, events, and commands
+- Reusable PID controller package
+- Deterministic synthetic process simulator
+- Concurrent PLC runtime with real elapsed `dt`, snapshots, events, and commands
 - MQTT status, telemetry, events, command subscription, LWT, and reconnect behavior
-- local Mosquitto Docker Compose configuration
+- Local Mosquitto Docker Compose configuration
+- **Local SQLite history for telemetry samples, events, commands, and PID changes**
+- **JSONL event log writer**
+- **Async bounded recorder preventing scan-loop blocking**
 
-Storage, HTTP/SSE, and the web dashboard are intentionally not implemented yet.
-SQLite, JSONL history, CI, authentication, TLS setup, and real equipment
-communication are also outside the current implementation.
+HTTP/SSE, the web dashboard, CI, authentication, TLS setup, and real equipment
+communication are outside the current implementation.
 
 ## Architecture
 
@@ -79,15 +81,45 @@ The helper scripts start the same long-running mode:
 ./scripts/run.sh
 ```
 
+## Storage and History
+
+When storage is enabled (the default since Stage 07), the runtime writes:
+
+- **SQLite database** at `data/history.db` — telemetry samples, events,
+  commands, and PID changes.
+- **JSONL event log** at `logs/events.jsonl` — one JSON object per line for
+  every runtime event.
+
+Both files are created automatically on first run. They are excluded from Git
+(see `.gitignore`).
+
+To clean local runtime artifacts:
+
+```powershell
+# Windows
+.\scripts\clean.ps1
+```
+
+```bash
+# Linux/macOS
+./scripts/clean.sh
+```
+
+**Warning:** `data/*.db` and `logs/*.jsonl` are not tracked by Git. Back them
+up manually if you need to preserve history.
+
+See [Storage History](docs/storage_history.md) for table schemas, retention
+policy, inspection commands, and the integration design.
+
 ## Configuration
 
 The default JSON file is `configs/default.json`. Unknown JSON fields and extra
 JSON values are rejected. Validation covers PLC timing, MQTT connection fields
-and topic shape, loop names and modes, PID/process ranges, and conditional web
-or storage paths.
+and topic shape, loop names and modes, PID/process ranges, and conditional
+storage paths.
 
-Web and storage are disabled in the default configuration because those
-subsystems are not implemented yet.
+Storage is enabled by default. Set `"enabled": false` in the `storage` section
+to run without persistence.
 
 ```bash
 go run ./cmd/vplc --validate-config --config configs/default.json
@@ -156,9 +188,9 @@ go build -o dist\vplc.exe .\cmd\vplc
 
 ## Roadmap
 
-1. Foundation, PID, simulator, PLC runtime, and MQTT: completed.
-2. Next: `stage-07-storage-history` for bounded local persistence and logging.
-3. Later: embedded local web UI, HTTP API, SSE, and portfolio polish.
+1. Foundation, PID, simulator, PLC runtime, MQTT, and local storage: completed.
+2. Next: `stage-08-local-web-dashboard` — embedded HTTP/SSE dashboard.
+3. Later: portfolio polish, export CLI, and CI pipeline.
 
 Development conventions and release checks are described in the
 [Developer Guide](docs/developer_guide.md).

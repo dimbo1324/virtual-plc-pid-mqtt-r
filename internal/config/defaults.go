@@ -36,6 +36,7 @@ func Default() Config {
 			EventsJSONLPath:     "logs/events.jsonl",
 			AppLogPath:          "logs/app.log",
 			RetentionMaxSamples: 100000,
+			WriteQueueSize:      256,
 		},
 		Loops: []LoopConfig{
 			{

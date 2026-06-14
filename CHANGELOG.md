@@ -26,3 +26,13 @@
 - Pre-storage architecture, lifecycle, validation and documentation hardening.
 - Explicit application-owned event fan-out and joined background goroutines.
 - Additional config, PLC channel, MQTT topic and app lifecycle tests.
+- Local SQLite storage for telemetry samples, events, commands and PID changes.
+- JSONL event log writer with append mode and concurrent-safe mutex.
+- SQLite schema migrations (idempotent, version-tracked in `schema_migrations`).
+- Retention cleanup: keeps newest N telemetry rows, configurable via `retention_max_samples`.
+- Async bounded recorder that bridges PLC runtime channels to storage without blocking the scan loop.
+- `internal/storage` package: `Store`, `JSONLWriter`, `Recorder` with full test coverage.
+- App wiring in `internal/app`: storage open/close on startup/shutdown, snapshot consumer goroutine, event recording, command recording, PID change recording.
+- Storage failure at startup fails the app clearly; write failures after startup log a warning and keep PLC running.
+- `write_queue_size` config field added to `storage` section.
+- `docs/storage_history.md` explaining storage design, tables, paths and inspection.

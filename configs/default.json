@@ -28,12 +28,13 @@
     "port": 8080
   },
   "storage": {
-    "enabled": false,
+    "enabled": true,
     "type": "sqlite",
     "sqlite_path": "data/history.db",
     "events_jsonl_path": "logs/events.jsonl",
     "app_log_path": "logs/app.log",
-    "retention_max_samples": 100000
+    "retention_max_samples": 100000,
+    "write_queue_size": 256
   },
   "loops": [
     {
