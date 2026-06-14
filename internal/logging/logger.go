@@ -18,6 +18,12 @@ func NewTextLogger(level string, output io.Writer) *slog.Logger {
 	return slog.New(slog.NewTextHandler(output, options))
 }
 
+// NewTeeLogger creates a text logger that writes to both w1 and w2 simultaneously.
+// Useful for tee-ing log output to both stdout and a file.
+func NewTeeLogger(level string, w1, w2 io.Writer) *slog.Logger {
+	return NewTextLogger(level, io.MultiWriter(w1, w2))
+}
+
 func parseLevel(level string) slog.Level {
 	switch strings.ToLower(strings.TrimSpace(level)) {
 	case "debug":

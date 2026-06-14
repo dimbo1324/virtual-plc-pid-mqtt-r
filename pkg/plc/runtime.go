@@ -16,10 +16,11 @@ const (
 type Runtime struct {
 	mu sync.RWMutex
 
-	config   Config
-	loops    map[string]*controlLoop
-	state    State
-	snapshot Snapshot
+	config      Config
+	loops       map[string]*controlLoop
+	externalPVs map[string]float64 // set by InjectPV; consumed each scan cycle
+	state       State
+	snapshot    Snapshot
 
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -44,7 +45,9 @@ func NewRuntime(config Config) (*Runtime, error) {
 
 	runtime := &Runtime{
 		config: config, loops: loops, state: StateStopped,
-		events: make(chan Event, defaultEventBuffer), snapshots: make(chan Snapshot, defaultSnapshotBuffer),
+		externalPVs: make(map[string]float64),
+		events:      make(chan Event, defaultEventBuffer),
+		snapshots:   make(chan Snapshot, defaultSnapshotBuffer),
 	}
 	runtime.snapshot = runtime.buildSnapshotLocked(time.Now().UTC())
 	return runtime, nil
@@ -136,6 +139,20 @@ func (r *Runtime) Events() <-chan Event { return r.events }
 
 // Snapshots returns the buffered scan snapshot stream.
 func (r *Runtime) Snapshots() <-chan Snapshot { return r.snapshots }
+
+// InjectPV supplies an externally sourced process variable for a named loop.
+// On the next scan tick this value is used in place of the simulator output for
+// the PID controller update. Returns false if the loop does not exist.
+// This is the hook for pkg/input.Provider adapters (OPC-UA, Modbus, REST, etc.).
+func (r *Runtime) InjectPV(name string, pv float64) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.loops[name]; !ok {
+		return false
+	}
+	r.externalPVs[name] = pv
+	return true
+}
 
 func (r *Runtime) emitEvent(event Event) {
 	select {

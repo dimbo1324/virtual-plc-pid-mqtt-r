@@ -9,6 +9,7 @@ import (
 
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/storage"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/web"
+	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/input"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/mqttx"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/plc"
 )
@@ -131,6 +132,25 @@ func (a *App) RunRuntime(ctx context.Context) error {
 			a.consumeSnapshots(ctx, runtime, rec, webSnapshotsCh)
 		}()
 	}
+
+	// --- InputProvider: wire SyntheticProvider for demo mode.
+	// The SyntheticProvider reads the runtime's own loop PV values and injects
+	// them back via InjectPV, demonstrating the end-to-end data path.
+	// Replace this with a real adapter (OPC-UA, Modbus, REST) to feed external PV values.
+	syntheticSnapFn := func() map[string]float64 {
+		snap := runtime.Snapshot()
+		m := make(map[string]float64, len(snap.Loops))
+		for name, loop := range snap.Loops {
+			m[name] = loop.ProcessValue
+		}
+		return m
+	}
+	inputProvider := input.NewSyntheticProvider("synthetic", syntheticSnapFn)
+	background.Add(1)
+	go func() {
+		defer background.Done()
+		a.runInputProvider(ctx, runtime, inputProvider, plcConfig.ScanInterval)
+	}()
 
 	// --- Web dashboard server ---
 	storageModeSnapshot := storageMode
@@ -386,6 +406,31 @@ func shouldPublishRuntimeEventToMQTT(event plc.Event) bool {
 	// MQTT command responses are already published by pkg/mqttx. Skipping
 	// their mirrored runtime events prevents duplicate command outcomes.
 	return event.Details["source"] != "mqtt"
+}
+
+// runInputProvider polls provider at interval and injects good-quality tag values
+// into the runtime as external PV overrides. Exits when ctx is cancelled.
+func (a *App) runInputProvider(ctx context.Context, runtime *plc.Runtime, provider input.Provider, interval time.Duration) {
+	defer func() { _ = provider.Close() }()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			tags, err := provider.Read(ctx)
+			if err != nil {
+				a.Logger.Warn("input provider read error", "provider", provider.Name(), "error", err)
+				continue
+			}
+			for _, tv := range tags {
+				if tv.Quality == input.QualityGood {
+					runtime.InjectPV(tv.Name, tv.Value)
+				}
+			}
+		}
+	}
 }
 
 func (a *App) closeStorage(store *storage.Store, jsonlWriter *storage.JSONLWriter, rec *storage.Recorder) {

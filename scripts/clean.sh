@@ -24,6 +24,19 @@ remove_target() {
     fi
 }
 
+remove_glob() {
+    pattern="$1"
+    for f in $pattern 2>/dev/null; do
+        [ -f "$f" ] || continue
+        if $DRY_RUN; then
+            echo "  [dry-run] would remove: $f"
+        else
+            rm -f -- "$f"
+            echo "  removed: $f"
+        fi
+    done
+}
+
 remove_runtime_files() {
     dir="$1"
     find "$dir" -maxdepth 1 -type f ! -name '.gitkeep' 2>/dev/null | while read -r f; do
@@ -41,6 +54,15 @@ if $DRY_RUN; then echo "Dry-run mode: no files will be deleted."; fi
 echo "Cleaning build artifacts..."
 remove_target dist
 remove_target bin
+remove_target release
+remove_glob "vplc vplc.exe"
+
+echo "Cleaning test artifacts..."
+remove_glob "coverage.out cov.out *.out *.test"
+
+echo "Cleaning temp directories..."
+remove_target tmp
+remove_target temp
 
 echo "Cleaning runtime data..."
 remove_runtime_files data

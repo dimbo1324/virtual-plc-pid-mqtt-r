@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/app"
@@ -49,7 +50,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 
-	logger := logging.NewTextLogger("info", stdout)
+	logWriter := buildLogWriter(stdout, cfg)
+	logger := logging.NewTextLogger("info", logWriter)
 	logger.Info("configuration loaded", "config", *configPath)
 	runtime := app.New(cfg, logger)
 	if !*runRuntime {
@@ -67,4 +69,21 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// buildLogWriter returns a writer that tees stdout to cfg.Storage.AppLogPath when storage
+// is enabled and app_log_path is set. Falls back to stdout-only on any file error.
+func buildLogWriter(stdout io.Writer, cfg config.Config) io.Writer {
+	if !cfg.Storage.Enabled || cfg.Storage.AppLogPath == "" {
+		return stdout
+	}
+	if err := os.MkdirAll(filepath.Dir(cfg.Storage.AppLogPath), 0o750); err != nil {
+		return stdout
+	}
+	f, err := os.OpenFile(cfg.Storage.AppLogPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o640)
+	if err != nil {
+		return stdout
+	}
+	// f is intentionally not closed here; it lives for the entire process lifetime.
+	return io.MultiWriter(stdout, f)
 }

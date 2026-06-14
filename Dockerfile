@@ -25,4 +25,5 @@ EXPOSE 8080
 
 VOLUME ["/app/data", "/app/logs"]
 
-ENTRYPOINT ["/app/vplc", "--config", "/app/configs/docker.json"]
+ENTRYPOINT ["/app/vplc"]
+CMD ["--run", "--config", "/app/configs/docker.json"]

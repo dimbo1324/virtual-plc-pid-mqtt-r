@@ -304,7 +304,6 @@ html, body {
 }
 .loop-mode-badge.mode-auto     { color: var(--green);  border-color: var(--green); }
 .loop-mode-badge.mode-manual   { color: var(--orange); border-color: var(--orange); }
-.loop-mode-badge.mode-cascade  { color: var(--accent); border-color: var(--accent); }
 .loop-mode-badge.mode-hold     { color: var(--yellow); border-color: var(--yellow); }
 .loop-mode-badge.mode-disabled { color: var(--red);    border-color: var(--red); }
 

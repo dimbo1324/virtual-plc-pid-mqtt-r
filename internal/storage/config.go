@@ -24,7 +24,7 @@ func (c Config) Validate() error {
 	if !c.Enabled {
 		return nil
 	}
-	if c.Type != "sqlite" && c.Type != "jsonl" {
+	if c.Type != "sqlite" {
 		return fmt.Errorf("storage type %q is not supported; only \"sqlite\" is allowed", c.Type)
 	}
 	if c.SQLitePath == "" {
