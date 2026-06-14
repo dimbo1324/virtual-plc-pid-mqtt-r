@@ -1,0 +1,38 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: vplc-mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  vplc-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vplc-app
+    ports:
+      - "8080:8080"
+    volumes:
+      - vplc-data:/app/data
+      - vplc-logs:/app/logs
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  vplc-data:
+  vplc-logs:

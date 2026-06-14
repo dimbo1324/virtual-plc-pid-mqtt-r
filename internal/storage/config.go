@@ -11,6 +11,8 @@ type Config struct {
 	AppLogPath          string
 	RetentionMaxSamples int
 	WriteQueueSize      int
+	FallbackOnError     bool
+	FallbackType        string // "jsonl" or "noop"
 }
 
 // DefaultWriteQueueSize is used when WriteQueueSize is not set in the config.
@@ -22,7 +24,7 @@ func (c Config) Validate() error {
 	if !c.Enabled {
 		return nil
 	}
-	if c.Type != "sqlite" {
+	if c.Type != "sqlite" && c.Type != "jsonl" {
 		return fmt.Errorf("storage type %q is not supported; only \"sqlite\" is allowed", c.Type)
 	}
 	if c.SQLitePath == "" {

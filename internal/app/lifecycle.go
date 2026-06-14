@@ -28,23 +28,39 @@ func (a *App) RunRuntime(ctx context.Context) error {
 	var rec *storage.Recorder
 	var store *storage.Store
 	var jsonlWriter *storage.JSONLWriter
+	storageMode := "disabled"
 
 	storageCfg := mapStorageConfig(a.Config)
 	if storageCfg.Enabled {
-		var err error
-		store, err = storage.Open(ctx, storageCfg)
-		if err != nil {
-			// Fail startup clearly when storage is enabled but cannot be opened.
-			return fmt.Errorf("open storage: %w", err)
+		var openErr error
+		store, openErr = storage.Open(ctx, storageCfg)
+		if openErr != nil {
+			if !storageCfg.FallbackOnError {
+				return fmt.Errorf("open storage: %w", openErr)
+			}
+			a.Logger.Warn("storage unavailable; entering degraded mode",
+				"error", openErr, "fallback", storageCfg.FallbackType)
+			storageMode = "degraded"
+			if storageCfg.FallbackType == "jsonl" {
+				jw, jwErr := storage.NewJSONLWriter(storageCfg.EventsJSONLPath)
+				if jwErr != nil {
+					a.Logger.Warn("jsonl fallback failed; events will not be persisted", "error", jwErr)
+				} else {
+					jsonlWriter = jw
+				}
+			}
+		} else {
+			var err error
+			jsonlWriter, err = storage.NewJSONLWriter(storageCfg.EventsJSONLPath)
+			if err != nil {
+				_ = store.Close()
+				return fmt.Errorf("open jsonl writer: %w", err)
+			}
+			rec = storage.NewRecorder(store, jsonlWriter, storageCfg.WriteQueueSize, a.Logger)
+			rec.Start(ctx)
+			storageMode = "ok"
+			a.Logger.Info("storage initialized", "path", storageCfg.SQLitePath)
 		}
-		jsonlWriter, err = storage.NewJSONLWriter(storageCfg.EventsJSONLPath)
-		if err != nil {
-			_ = store.Close()
-			return fmt.Errorf("open jsonl writer: %w", err)
-		}
-		rec = storage.NewRecorder(store, jsonlWriter, storageCfg.WriteQueueSize, a.Logger)
-		rec.Start(ctx)
-		a.Logger.Info("storage initialized", "path", storageCfg.SQLitePath)
 	}
 
 	// --- PLC runtime ---
@@ -100,10 +116,11 @@ func (a *App) RunRuntime(ctx context.Context) error {
 	}
 
 	// Forward runtime events to MQTT, storage, and web SSE.
+	// In degraded mode (rec==nil but jsonlWriter!=nil) events go directly to JSONL.
 	background.Add(1)
 	go func() {
 		defer background.Done()
-		a.forwardRuntimeEvents(ctx, runtime, mqttClient, rec, webEventsCh)
+		a.forwardRuntimeEvents(ctx, runtime, mqttClient, rec, jsonlWriter, webEventsCh)
 	}()
 
 	// Consume snapshot stream for storage and web SSE.
@@ -116,13 +133,16 @@ func (a *App) RunRuntime(ctx context.Context) error {
 	}
 
 	// --- Web dashboard server ---
+	storageModeSnapshot := storageMode
+	storageStatusFn := func() string { return storageModeSnapshot }
 	if webCfg.Enabled {
 		webServer := web.NewServer(webCfg, web.Deps{
-			Runtime:        runtime,
-			Store:          store,
-			CommandHandler: web.CommandHandler(commandHandler),
-			EventsCh:       webEventsCh,
-			SnapshotsCh:    webSnapshotsCh,
+			Runtime:         runtime,
+			Store:           store,
+			CommandHandler:  web.CommandHandler(commandHandler),
+			EventsCh:        webEventsCh,
+			SnapshotsCh:     webSnapshotsCh,
+			StorageStatusFn: storageStatusFn,
 		}, a.Logger)
 		background.Add(1)
 		go func() {
@@ -296,15 +316,20 @@ func (a *App) publishMQTTTelemetry(ctx context.Context, runtime *plc.Runtime, cl
 	}
 }
 
-func (a *App) forwardRuntimeEvents(ctx context.Context, runtime *plc.Runtime, client *mqttx.Client, rec *storage.Recorder, webCh chan<- plc.Event) {
+func (a *App) forwardRuntimeEvents(ctx context.Context, runtime *plc.Runtime, client *mqttx.Client, rec *storage.Recorder, jw *storage.JSONLWriter, webCh chan<- plc.Event) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case event := <-runtime.Events():
+			storageEvent := plcEventToStorageRecord(event)
 			if rec != nil {
-				storageEvent := plcEventToStorageRecord(event)
 				rec.RecordEvent(storageEvent)
+			} else if jw != nil {
+				// Degraded mode: write events directly to JSONL without a recorder.
+				if err := jw.WriteEvent(ctx, storageEvent); err != nil {
+					a.Logger.Warn("degraded jsonl write", "error", err)
+				}
 			}
 			if webCh != nil {
 				select {

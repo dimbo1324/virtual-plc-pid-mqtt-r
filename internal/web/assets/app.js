@@ -105,13 +105,23 @@ async function loadStatus() {
         const devEl = document.getElementById('device-id');
         if (devEl) devEl.textContent = s.device_id || '—';
         if (s.state) updatePLCState(s.state);
-        // server_time lets us compute uptime client-side from the server-reported value
         if (s.server_time && s.uptime) {
-            // Parse the Go duration string (e.g. "5m3s") as a rough estimate
             const el = document.getElementById('uptime');
             if (el) el.textContent = s.uptime;
         }
+        updateStorageMode(s.storage_mode);
     } catch (_) {}
+}
+
+function updateStorageMode(mode) {
+    const badge = document.getElementById('storage-badge');
+    if (!badge) return;
+    if (mode === 'degraded') {
+        badge.style.display = '';
+        badge.title = t('header.storage.degraded.title');
+    } else {
+        badge.style.display = 'none';
+    }
 }
 
 // ── Loop card creation ──────────────────────────────────────────────────────

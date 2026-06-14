@@ -91,6 +91,23 @@ html, body {
 .state-badge.stopping { background: #2a1a0d; color: var(--orange); border-color: var(--orange); }
 .state-badge.faulted  { background: #2a0d0d; color: var(--red);    border-color: var(--red); }
 
+.storage-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    padding: 2px 7px;
+    border-radius: var(--radius);
+    border: 1px solid var(--orange);
+    background: #2a1a0d;
+    color: var(--orange);
+    cursor: help;
+    animation: blink-warn 2s step-end infinite;
+}
+@keyframes blink-warn {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .5; }
+}
+
 .dot {
     width: 8px;
     height: 8px;

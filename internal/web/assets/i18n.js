@@ -14,6 +14,8 @@ const TRANSLATIONS = {
         'header.state.running': 'RUNNING',
         'header.state.stopped': 'STOPPED',
         'header.state.unknown': 'UNKNOWN',
+        'header.storage.degraded': 'STORAGE DEGRADED',
+        'header.storage.degraded.title': 'SQLite unavailable — running in JSONL fallback mode. Historical telemetry is not being recorded.',
         // Loop card
         'card.mode': 'Mode',
         'card.auto': 'AUTO',
@@ -60,6 +62,8 @@ const TRANSLATIONS = {
         'header.state.running': 'РАБОТАЕТ',
         'header.state.stopped': 'ОСТАНОВЛЕН',
         'header.state.unknown': 'НЕИЗВЕСТНО',
+        'header.storage.degraded': 'ХРАНИЛИЩЕ НЕДОСТУПНО',
+        'header.storage.degraded.title': 'SQLite недоступен — работа в режиме резервного JSONL. Историческая телеметрия не записывается.',
         'card.mode': 'Режим',
         'card.auto': 'АВТО',
         'card.manual': 'РУЧНОЙ',

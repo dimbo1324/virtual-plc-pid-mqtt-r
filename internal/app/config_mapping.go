@@ -56,6 +56,8 @@ func mapStorageConfig(cfg config.Config) storage.Config {
 		AppLogPath:          cfg.Storage.AppLogPath,
 		RetentionMaxSamples: cfg.Storage.RetentionMaxSamples,
 		WriteQueueSize:      queueSize,
+		FallbackOnError:     cfg.Storage.FallbackOnError,
+		FallbackType:        cfg.Storage.FallbackType,
 	}
 }
 

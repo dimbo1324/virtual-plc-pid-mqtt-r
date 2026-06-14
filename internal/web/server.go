@@ -20,11 +20,12 @@ type CommandHandler func(context.Context, plc.Command) (plc.Event, error)
 
 // Deps holds external dependencies injected into the web server.
 type Deps struct {
-	Runtime        *plc.Runtime
-	Store          *storage.Store // nil if storage is disabled
-	CommandHandler CommandHandler
-	EventsCh       <-chan plc.Event
-	SnapshotsCh    <-chan plc.Snapshot
+	Runtime         *plc.Runtime
+	Store           *storage.Store // nil if storage is disabled
+	CommandHandler  CommandHandler
+	EventsCh        <-chan plc.Event
+	SnapshotsCh     <-chan plc.Snapshot
+	StorageStatusFn func() string // returns "ok", "degraded", or "disabled"
 }
 
 // Server is an embedded HTTP dashboard for the virtual PLC.
@@ -61,6 +62,8 @@ func NewServer(cfg Config, deps Deps, logger *slog.Logger) *Server {
 }
 
 func (s *Server) registerRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /healthz", s.handleHealthz)
+	mux.HandleFunc("GET /readyz", s.handleReadyz)
 	mux.HandleFunc("GET /api/status", s.handleStatus)
 	mux.HandleFunc("GET /api/snapshot", s.handleSnapshot)
 	mux.HandleFunc("GET /api/events/recent", s.handleRecentEvents)

@@ -9,10 +9,10 @@ import (
 
 func TestQueryInt(t *testing.T) {
 	cases := []struct {
-		query    string
-		key      string
+		query         string
+		key           string
 		def, min, max int
-		want     int
+		want          int
 	}{
 		{"", "limit", 10, 1, 100, 10},
 		{"limit=50", "limit", 10, 1, 100, 50},
