@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	goruntime "runtime"
 	"syscall"
+	"time"
 
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/app"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/config"
@@ -64,11 +67,32 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if cfg.App.OpenBrowser && cfg.Web.Enabled {
+		go openBrowser(fmt.Sprintf("http://%s:%d", cfg.Web.Host, cfg.Web.Port))
+	}
+
 	if err := runtime.RunRuntime(ctx); err != nil {
 		fmt.Fprintf(stderr, "application error: %v\n", err)
 		return 1
 	}
 	return 0
+}
+
+// openBrowser opens url in the default system browser after a short delay to
+// give the web server time to bind. Errors are silently ignored.
+func openBrowser(url string) {
+	time.Sleep(600 * time.Millisecond)
+	var cmd *exec.Cmd
+	switch goruntime.GOOS {
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	_ = cmd.Start()
 }
 
 // buildLogWriter returns a writer that tees stdout to cfg.Storage.AppLogPath when storage

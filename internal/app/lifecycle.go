@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/storage"
@@ -88,6 +89,12 @@ func (a *App) RunRuntime(ctx context.Context) error {
 		return fmt.Errorf("create MQTT client: %w", err)
 	}
 
+	// --- Live storage mode (readable by /api/status at any point in time) ---
+	var storageModeAtom atomic.Value
+	storageModeAtom.Store(storageMode)
+	storageStatusFn := func() string { return storageModeAtom.Load().(string) }
+	setStorageMode := func(m string) { storageModeAtom.Store(m) }
+
 	// --- Web dashboard fan-out channels ---
 	webCfg := mapWebConfig(a.Config)
 	var webEventsCh chan plc.Event
@@ -117,11 +124,12 @@ func (a *App) RunRuntime(ctx context.Context) error {
 	}
 
 	// Forward runtime events to MQTT, storage, and web SSE.
-	// In degraded mode (rec==nil but jsonlWriter!=nil) events go directly to JSONL.
+	// In degraded mode (rec==nil but jsonlWriter!=nil) events go directly to JSONL;
+	// persistent write errors update storageMode to "failed" via setStorageMode.
 	background.Add(1)
 	go func() {
 		defer background.Done()
-		a.forwardRuntimeEvents(ctx, runtime, mqttClient, rec, jsonlWriter, webEventsCh)
+		a.forwardRuntimeEvents(ctx, runtime, mqttClient, rec, jsonlWriter, webEventsCh, setStorageMode)
 	}()
 
 	// Consume snapshot stream for storage and web SSE.
@@ -133,28 +141,14 @@ func (a *App) RunRuntime(ctx context.Context) error {
 		}()
 	}
 
-	// --- InputProvider: wire SyntheticProvider for demo mode.
-	// The SyntheticProvider reads the runtime's own loop PV values and injects
-	// them back via InjectPV, demonstrating the end-to-end data path.
-	// Replace this with a real adapter (OPC-UA, Modbus, REST) to feed external PV values.
-	syntheticSnapFn := func() map[string]float64 {
-		snap := runtime.Snapshot()
-		m := make(map[string]float64, len(snap.Loops))
-		for name, loop := range snap.Loops {
-			m[name] = loop.ProcessValue
-		}
-		return m
-	}
-	inputProvider := input.NewSyntheticProvider("synthetic", syntheticSnapFn)
-	background.Add(1)
-	go func() {
-		defer background.Done()
-		a.runInputProvider(ctx, runtime, inputProvider, plcConfig.ScanInterval)
-	}()
+	// --- InputProvider hook.
+	// Wire a real pkg/input.Provider here to feed external PV values (OPC-UA, Modbus, REST).
+	// Example:
+	//   provider := mypackage.NewOPCUAProvider(...)
+	//   background.Add(1)
+	//   go func() { defer background.Done(); a.runInputProvider(ctx, runtime, provider, plcConfig.ScanInterval) }()
 
 	// --- Web dashboard server ---
-	storageModeSnapshot := storageMode
-	storageStatusFn := func() string { return storageModeSnapshot }
 	if webCfg.Enabled {
 		webServer := web.NewServer(webCfg, web.Deps{
 			Runtime:         runtime,
@@ -336,7 +330,7 @@ func (a *App) publishMQTTTelemetry(ctx context.Context, runtime *plc.Runtime, cl
 	}
 }
 
-func (a *App) forwardRuntimeEvents(ctx context.Context, runtime *plc.Runtime, client *mqttx.Client, rec *storage.Recorder, jw *storage.JSONLWriter, webCh chan<- plc.Event) {
+func (a *App) forwardRuntimeEvents(ctx context.Context, runtime *plc.Runtime, client *mqttx.Client, rec *storage.Recorder, jw *storage.JSONLWriter, webCh chan<- plc.Event, setMode func(string)) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -349,6 +343,9 @@ func (a *App) forwardRuntimeEvents(ctx context.Context, runtime *plc.Runtime, cl
 				// Degraded mode: write events directly to JSONL without a recorder.
 				if err := jw.WriteEvent(ctx, storageEvent); err != nil {
 					a.Logger.Warn("degraded jsonl write", "error", err)
+					if setMode != nil {
+						setMode("failed")
+					}
 				}
 			}
 			if webCh != nil {
@@ -425,9 +422,14 @@ func (a *App) runInputProvider(ctx context.Context, runtime *plc.Runtime, provid
 				continue
 			}
 			for _, tv := range tags {
-				if tv.Quality == input.QualityGood {
+				switch tv.Quality {
+				case input.QualityGood:
 					runtime.InjectPV(tv.Name, tv.Value)
+				case input.QualityBad:
+					// Bad quality: clear stale injected PV so simulator resumes.
+					runtime.ClearPV(tv.Name)
 				}
+				// QualityUncertain: retain last good value.
 			}
 		}
 	}

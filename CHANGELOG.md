@@ -1,5 +1,32 @@
 # Changelog
 
+## [Unreleased] — Audit fixes (stage 11 follow-up)
+
+### Fixed
+- **`externalPVs` never cleared**: added `Runtime.ClearPV(name)` method; `runInputProvider` now calls it on `QualityBad` readings so the simulator resumes when a provider loses signal.
+- **`open_browser` was a no-op**: implemented cross-platform browser launch in `cmd/vplc/main.go` via `os/exec` (Windows `start`, macOS `open`, Linux `xdg-open`).
+- **`SyntheticProvider` circular feedback loop**: removed the wiring from `lifecycle.go` (it read back its own injected PV, hiding simulator physics); the `runInputProvider` hook remains for real adapters.
+- **`storageMode` frozen at startup**: replaced the static string snapshot with `atomic.Value`; JSONL write failures in degraded mode now update the mode to `"failed"` at runtime.
+- **Retention policy global, not per-loop**: SQL query now uses `ROW_NUMBER() OVER (PARTITION BY loop_name)` to keep N rows *per loop*, preventing an active loop from displacing history of quieter loops.
+- **`Recorder.Stop()` busy-wait**: replaced `time.Sleep(10ms)` poll loop with a `done chan struct{}` closed by the worker goroutine.
+- **Empty `loop` field in web commands**: added `requireLoop` helper returning 400 `"loop is required"` in all six loop-command handlers.
+- **`storage.Config.Validate()` missing `FallbackType` check**: validation moved into the storage package itself so it applies regardless of caller.
+- **`disabled` mode missing from UI select**: added `<option value="disabled">` with EN (`DISABLED`) / RU (`ОТКЛ.`) translations.
+- **PID gains not refreshed via SSE**: `kp`, `ki`, `kd` now updated in `updateLoopCard()` on every snapshot, not only at card creation.
+- **`loadStatus()` called once**: now called again after SSE reconnect so `storage_mode` badge and header refresh without page reload.
+- **Window listener accumulation** (8 `window` event listeners for 3 loop cards + panel): consolidated into a single global `_activeDrag` state with one `mousemove` / one `mouseup` on `window`.
+- **Command errors invisible**: `postCommand` now calls `showToast(msg)` on HTTP error or network failure; a 3.5 s red toast appears in the bottom-right corner.
+- **Manual content referenced removed `CASCADE` mode**: updated EN and RU PLC Theory table and usage text to reflect `HOLD` / `DISABLED`.
+
+### Added
+- `Runtime.ClearPV(name string)` — explicit PV injection removal.
+- `TestReadyz_Running` — covers the 200 path of `/readyz` (previously only 503 was tested).
+- `TestInjectPV_OverridesSimulator`, `TestClearPV_RestoresSimulator`, `TestScanCounter_Advances` in `pkg/plc/inject_pv_test.go`.
+- `TestSmoke_DegradedStorageFallback` — smoke test for the `fallback_on_error + fallback_type: "jsonl"` code path.
+- `.cmd-toast` CSS class + `@keyframes toast-in` animation for command error feedback.
+
+---
+
 ## [0.1.0] - 2026-06-14
 
 ### Added

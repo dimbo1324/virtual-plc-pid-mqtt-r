@@ -12,6 +12,7 @@ let uptimeBase = null;
 function initSSE() {
     const dot = document.getElementById('connection-dot');
     let reconnectMs = 1000;
+    let wasError = false;
 
     function connect() {
         const es = new EventSource('/api/stream');
@@ -19,6 +20,10 @@ function initSSE() {
         es.addEventListener('snapshot', e => {
             try { handleSnapshot(JSON.parse(e.data)); } catch (_) {}
             if (dot) { dot.className = 'dot connected'; dot.title = t('header.conn.ok'); }
+            if (wasError) {
+                wasError = false;
+                loadStatus(); // refresh storage_mode and header after reconnect
+            }
             reconnectMs = 1000;
         });
 
@@ -34,6 +39,7 @@ function initSSE() {
 
         es.onerror = () => {
             if (dot) { dot.className = 'dot lost'; dot.title = t('header.conn.lost'); }
+            wasError = true;
             es.close();
             setTimeout(connect, reconnectMs);
             reconnectMs = Math.min(reconnectMs * 2, 16000);
@@ -173,9 +179,10 @@ function createLoopCard(container, name, loop) {
   </div>
   <div class="ctrl-row">
     <select class="ctrl-select mode-select">
-      <option value="auto"   data-i18n="card.auto">${t('card.auto')}</option>
-      <option value="manual" data-i18n="card.manual">${t('card.manual')}</option>
-      <option value="hold"   data-i18n="card.hold">${t('card.hold')}</option>
+      <option value="auto"     data-i18n="card.auto">${t('card.auto')}</option>
+      <option value="manual"   data-i18n="card.manual">${t('card.manual')}</option>
+      <option value="hold"     data-i18n="card.hold">${t('card.hold')}</option>
+      <option value="disabled" data-i18n="card.disabled">${t('card.disabled')}</option>
     </select>
     <button class="ctrl-btn mode-btn" data-i18n="card.mode">${t('card.mode')}</button>
   </div>
@@ -279,37 +286,47 @@ function updateLoopCard(card, loop) {
 
     const sel = q('.mode-select');
     if (sel && document.activeElement !== sel) sel.value = loop.mode || 'auto';
+
+    // Keep PID gains in sync (they can be changed via MQTT while the page is open).
+    if (loop.kp != null) q('.kp-val').textContent = loop.kp;
+    if (loop.ki != null) q('.ki-val').textContent = loop.ki;
+    if (loop.kd != null) q('.kd-val').textContent = loop.kd;
 }
+
+// ── Global drag state — one pair of window listeners for ALL resize handles ──
+// Each handle sets _activeDrag on mousedown; the global handlers dispatch to it.
+
+let _activeDrag = null;
+
+window.addEventListener('mousemove', e => {
+    if (_activeDrag) _activeDrag.move(e);
+});
+window.addEventListener('mouseup', e => {
+    if (!_activeDrag || e.button !== 0) return;
+    _activeDrag.end(e);
+    _activeDrag = null;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+});
 
 // ── Per-card horizontal resize ───────────────────────────────────────────────
 
 function initCardResize(card, handle) {
     if (!handle) return;
-    let dragging = false;
-    let startX = 0;
-    let startW = 0;
-
     handle.addEventListener('mousedown', e => {
         if (e.button !== 0) return;
         e.preventDefault();
-        dragging = true;
-        startX = e.clientX;
-        startW = card.offsetWidth;
+        const startX = e.clientX;
+        const startW = card.offsetWidth;
         document.body.style.cursor = 'ew-resize';
         document.body.style.userSelect = 'none';
-    });
-
-    window.addEventListener('mousemove', e => {
-        if (!dragging) return;
-        const newW = Math.max(300, Math.min(900, startW + (e.clientX - startX)));
-        card.style.width = newW + 'px';
-    });
-
-    window.addEventListener('mouseup', e => {
-        if (!dragging || e.button !== 0) return;
-        dragging = false;
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
+        _activeDrag = {
+            move: ev => {
+                const newW = Math.max(300, Math.min(900, startW + (ev.clientX - startX)));
+                card.style.width = newW + 'px';
+            },
+            end: () => {},
+        };
     });
 }
 
@@ -352,47 +369,46 @@ async function postCommand(path, body = {}) {
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            console.warn('command rejected:', err.error || res.status);
+            const msg = err.error || `HTTP ${res.status}`;
+            console.warn('command rejected:', msg);
+            showToast(msg);
         }
     } catch (e) {
         console.error('command error:', e);
+        showToast(String(e));
     }
+}
+
+function showToast(msg) {
+    const el = document.createElement('div');
+    el.className = 'cmd-toast';
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3500);
 }
 
 // ── Panel resize handle ──────────────────────────────────────────────────────
 
 function initResizeHandle() {
-    const handle    = document.getElementById('resize-handle');
-    const evPanel   = document.getElementById('events-panel');
+    const handle  = document.getElementById('resize-handle');
+    const evPanel = document.getElementById('events-panel');
     if (!handle || !evPanel) return;
-
-    let dragging = false;
-    let startX = 0;
-    let startW = 0;
 
     handle.addEventListener('mousedown', e => {
         if (e.button !== 0) return;
-        dragging = true;
-        startX = e.clientX;
-        startW = evPanel.offsetWidth;
+        const startX = e.clientX;
+        const startW = evPanel.offsetWidth;
         handle.classList.add('dragging');
         document.body.style.cursor = 'col-resize';
         document.body.style.userSelect = 'none';
-    });
-
-    window.addEventListener('mousemove', e => {
-        if (!dragging) return;
-        const dx = startX - e.clientX;
-        const newW = Math.max(180, Math.min(600, startW + dx));
-        evPanel.style.width = newW + 'px';
-    });
-
-    window.addEventListener('mouseup', e => {
-        if (!dragging || e.button !== 0) return;
-        dragging = false;
-        handle.classList.remove('dragging');
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
+        _activeDrag = {
+            move: ev => {
+                const dx = startX - ev.clientX;
+                const newW = Math.max(180, Math.min(600, startW + dx));
+                evPanel.style.width = newW + 'px';
+            },
+            end: () => handle.classList.remove('dragging'),
+        };
     });
 }
 

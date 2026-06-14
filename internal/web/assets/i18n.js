@@ -21,6 +21,7 @@ const TRANSLATIONS = {
         'card.auto': 'AUTO',
         'card.manual': 'MANUAL',
         'card.hold': 'HOLD',
+        'card.disabled': 'DISABLED',
         'card.pv': 'PV',
         'card.sp': 'SP',
         'card.mv': 'MV',
@@ -68,6 +69,7 @@ const TRANSLATIONS = {
         'card.auto': 'АВТО',
         'card.manual': 'РУЧНОЙ',
         'card.hold': 'УДЕРЖАНИЕ',
+        'card.disabled': 'ОТКЛ.',
         'card.pv': 'ПЗ',
         'card.sp': 'ЗД',
         'card.mv': 'РВ',
@@ -114,7 +116,7 @@ const MANUAL_CONTENT = {
 <h3>Key Features</h3>
 <ul>
   <li>Multiple independent control loops, each with its own PID parameters and process model.</li>
-  <li>Auto / Manual / Cascade operating modes.</li>
+  <li>Auto / Manual / Hold / Disabled operating modes.</li>
   <li>Real-time trend charts with zoom, pan, and export.</li>
   <li>Disturbance injection to test controller robustness.</li>
   <li>Full bilingual UI (English / Russian).</li>
@@ -136,7 +138,8 @@ const MANUAL_CONTENT = {
   <tbody>
     <tr><td>AUTO</td><td>Operator setpoint</td><td>PID output</td></tr>
     <tr><td>MANUAL</td><td>Operator setpoint</td><td>Operator direct output</td></tr>
-    <tr><td>CASCADE</td><td>External master loop output</td><td>PID output</td></tr>
+    <tr><td>HOLD</td><td>—</td><td>Last MV value (frozen)</td></tr>
+    <tr><td>DISABLED</td><td>—</td><td>Loop off; MV = 0</td></tr>
   </tbody>
 </table>
 <h3>Bumpless Transfer</h3>
@@ -179,7 +182,7 @@ u[k] = P + I[k] + D
 <p>Use the <strong>Start</strong> / <strong>Stop</strong> buttons in the header. The status badge shows the current PLC state. All loops are started and stopped together.</p>
 <h3>Loop Controls</h3>
 <ul>
-  <li><strong>Mode selector</strong> — switch between AUTO / MANUAL / CASCADE per loop.</li>
+  <li><strong>Mode selector</strong> — switch between AUTO / MANUAL / HOLD / DISABLED per loop.</li>
   <li><strong>Setpoint</strong> — type a value and click <em>Set</em> (or press Enter) to update the loop setpoint.</li>
   <li><strong>Disturbance</strong> — injects a step disturbance of ±5 % for 30 seconds into the process simulator, useful for testing controller robustness.</li>
   <li><strong>Reset</strong> — clears PID integrator state and returns the loop to its initial condition.</li>
@@ -218,7 +221,7 @@ u[k] = P + I[k] + D
 <h3>POST /api/commands/setpoint</h3>
 <p>Updates a loop setpoint. Body: <code>{"loop":"loop_name","value":42.0}</code>.</p>
 <h3>POST /api/commands/mode</h3>
-<p>Changes a loop mode. Body: <code>{"loop":"loop_name","mode":"auto"|"manual"|"hold"}</code>.</p>
+<p>Changes a loop mode. Body: <code>{"loop":"loop_name","mode":"auto"|"manual"|"hold"|"disabled"}</code>.</p>
 <h3>POST /api/commands/manual_output</h3>
 <p>Sets manual output value (MANUAL mode only). Body: <code>{"loop":"loop_name","value":50.0}</code>.</p>
 <h3>POST /api/commands/inject_disturbance</h3>
@@ -242,7 +245,7 @@ u[k] = P + I[k] + D
 <h3>Основные возможности</h3>
 <ul>
   <li>Несколько независимых контуров управления, каждый со своими параметрами ПИД и моделью процесса.</li>
-  <li>Режимы работы: Авто / Ручной / Каскад.</li>
+  <li>Режимы работы: Авто / Ручной / Удержание / Откл.</li>
   <li>Тренды в реальном времени с масштабированием, сдвигом и экспортом.</li>
   <li>Инжекция возмущений для проверки устойчивости регулятора.</li>
   <li>Полный двуязычный интерфейс (русский / английский).</li>
@@ -264,7 +267,8 @@ u[k] = P + I[k] + D
   <tbody>
     <tr><td>АВТО</td><td>Оператор</td><td>Выход ПИД</td></tr>
     <tr><td>РУЧНОЙ</td><td>Оператор</td><td>Прямой выход оператора</td></tr>
-    <tr><td>КАСКАД</td><td>Выход ведущего контура</td><td>Выход ПИД</td></tr>
+    <tr><td>УДЕРЖАНИЕ</td><td>—</td><td>Последнее значение РВ (заморожено)</td></tr>
+    <tr><td>ОТКЛ.</td><td>—</td><td>Контур выключен; РВ = 0</td></tr>
   </tbody>
 </table>
 <h3>Безударное переключение</h3>
@@ -307,7 +311,7 @@ u[k] = П + И[k] + Д
 <p>Используйте кнопки <strong>Запуск</strong> / <strong>Стоп</strong> в заголовке. Значок состояния показывает текущее состояние ПЛК. Все контуры запускаются и останавливаются одновременно.</p>
 <h3>Управление контурами</h3>
 <ul>
-  <li><strong>Выбор режима</strong> — переключение между АВТО / РУЧНОЙ / КАСКАД для каждого контура.</li>
+  <li><strong>Выбор режима</strong> — переключение между АВТО / РУЧНОЙ / УДЕРЖАНИЕ / ОТКЛ. для каждого контура.</li>
   <li><strong>Задание</strong> — введите значение и нажмите <em>Уст.</em> (или Enter) для обновления задания контура.</li>
   <li><strong>Возмущение</strong> — инжектирует ступенчатое возмущение ±5 % на 30 секунд в симулятор процесса; удобно для проверки устойчивости регулятора.</li>
   <li><strong>Сброс</strong> — очищает состояние интегратора ПИД и возвращает контур в начальное состояние.</li>
@@ -346,7 +350,7 @@ u[k] = П + И[k] + Д
 <h3>POST /api/commands/setpoint</h3>
 <p>Обновляет задание контура. Тело: <code>{"loop":"имя_контура","value":42.0}</code>.</p>
 <h3>POST /api/commands/mode</h3>
-<p>Изменяет режим контура. Тело: <code>{"loop":"имя_контура","mode":"auto"|"manual"|"hold"}</code>.</p>
+<p>Изменяет режим контура. Тело: <code>{"loop":"имя_контура","mode":"auto"|"manual"|"hold"|"disabled"}</code>.</p>
 <h3>POST /api/commands/manual_output</h3>
 <p>Устанавливает значение ручного выхода (только режим РУЧНОЙ). Тело: <code>{"loop":"имя_контура","value":50.0}</code>.</p>
 <h3>POST /api/commands/inject_disturbance</h3>

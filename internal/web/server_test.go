@@ -208,3 +208,20 @@ func TestReadyz_NotRunning(t *testing.T) {
 		t.Errorf("GET /readyz = %d, want 503 (PLC not started)", res.StatusCode)
 	}
 }
+
+func TestReadyz_Running(t *testing.T) {
+	ts, rt := handlerTest(t)
+	if err := rt.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { _ = rt.Stop(context.Background()) })
+
+	res, err := http.Get(ts.URL + "/readyz")
+	if err != nil {
+		t.Fatalf("GET /readyz: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("GET /readyz = %d, want 200 (PLC running)", res.StatusCode)
+	}
+}

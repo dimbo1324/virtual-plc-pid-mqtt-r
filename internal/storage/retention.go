@@ -15,9 +15,12 @@ func (s *Store) ApplyRetention(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx, `
 		DELETE FROM telemetry_samples
 		WHERE id NOT IN (
-			SELECT id FROM telemetry_samples
-			ORDER BY id DESC
-			LIMIT ?
+			SELECT id FROM (
+				SELECT id,
+				       ROW_NUMBER() OVER (PARTITION BY loop_name ORDER BY id DESC) AS rn
+				FROM telemetry_samples
+			)
+			WHERE rn <= ?
 		)`, maxSamples)
 	if err != nil {
 		return fmt.Errorf("apply telemetry retention: %w", err)

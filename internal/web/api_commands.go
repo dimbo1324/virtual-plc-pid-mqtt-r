@@ -7,6 +7,15 @@ import (
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/plc"
 )
 
+// requireLoop returns false and writes a 400 JSON error if loop is empty.
+func requireLoop(w http.ResponseWriter, loop string) bool {
+	if loop == "" {
+		jsonError(w, http.StatusBadRequest, "loop is required")
+		return false
+	}
+	return true
+}
+
 func (s *Server) handleCommandStart(w http.ResponseWriter, r *http.Request) {
 	s.execCommand(w, r, plc.Command{Command: plc.CommandStartPLC, Source: "web"})
 }
@@ -24,6 +33,9 @@ func (s *Server) handleCommandSetpoint(w http.ResponseWriter, r *http.Request) {
 	var req setpointRequest
 	if err := decodeJSON(r, &req); err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !requireLoop(w, req.Loop) {
 		return
 	}
 	s.execCommand(w, r, plc.Command{
@@ -45,6 +57,9 @@ func (s *Server) handleCommandPIDGains(w http.ResponseWriter, r *http.Request) {
 	var req pidGainsRequest
 	if err := decodeJSON(r, &req); err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !requireLoop(w, req.Loop) {
 		return
 	}
 	s.execCommand(w, r, plc.Command{
@@ -69,6 +84,9 @@ func (s *Server) handleCommandMode(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if !requireLoop(w, req.Loop) {
+		return
+	}
 	s.execCommand(w, r, plc.Command{
 		Command:      plc.CommandSetMode,
 		Loop:         req.Loop,
@@ -87,6 +105,9 @@ func (s *Server) handleCommandManualOutput(w http.ResponseWriter, r *http.Reques
 	var req manualOutputRequest
 	if err := decodeJSON(r, &req); err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !requireLoop(w, req.Loop) {
 		return
 	}
 	s.execCommand(w, r, plc.Command{
@@ -109,6 +130,9 @@ func (s *Server) handleCommandInjectDisturbance(w http.ResponseWriter, r *http.R
 		jsonError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if !requireLoop(w, req.Loop) {
+		return
+	}
 	s.execCommand(w, r, plc.Command{
 		Command:         plc.CommandInjectDisturbance,
 		Loop:            req.Loop,
@@ -126,6 +150,9 @@ func (s *Server) handleCommandResetLoop(w http.ResponseWriter, r *http.Request) 
 	var req resetLoopRequest
 	if err := decodeJSON(r, &req); err != nil {
 		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !requireLoop(w, req.Loop) {
 		return
 	}
 	s.execCommand(w, r, plc.Command{

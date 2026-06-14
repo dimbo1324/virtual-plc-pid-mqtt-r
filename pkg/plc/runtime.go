@@ -154,6 +154,15 @@ func (r *Runtime) InjectPV(name string, pv float64) bool {
 	return true
 }
 
+// ClearPV removes any externally injected PV for the named loop, allowing the
+// internal simulator to resume as the PV source on the next scan tick.
+// Call this when an input.Provider reports QualityBad or closes.
+func (r *Runtime) ClearPV(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.externalPVs, name)
+}
+
 func (r *Runtime) emitEvent(event Event) {
 	select {
 	case r.events <- event:

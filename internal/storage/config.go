@@ -39,5 +39,12 @@ func (c Config) Validate() error {
 	if c.WriteQueueSize <= 0 {
 		return fmt.Errorf("storage write_queue_size must be > 0, got %d", c.WriteQueueSize)
 	}
+	if c.FallbackOnError {
+		switch c.FallbackType {
+		case "jsonl", "noop":
+		default:
+			return fmt.Errorf("storage fallback_type must be \"jsonl\" or \"noop\" when fallback_on_error is true, got %q", c.FallbackType)
+		}
+	}
 	return nil
 }

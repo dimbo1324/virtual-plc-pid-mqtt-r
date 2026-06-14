@@ -39,6 +39,7 @@ type Recorder struct {
 	jsonl  *JSONLWriter
 	queue  chan recorderMsg
 	logger *slog.Logger
+	done   chan struct{} // closed by worker when it exits
 }
 
 // NewRecorder creates a Recorder. queueSize controls the bounded channel depth.
@@ -52,6 +53,7 @@ func NewRecorder(store *Store, jsonl *JSONLWriter, queueSize int, logger *slog.L
 		jsonl:  jsonl,
 		queue:  make(chan recorderMsg, queueSize),
 		logger: logger,
+		done:   make(chan struct{}),
 	}
 }
 
@@ -60,15 +62,11 @@ func (r *Recorder) Start(ctx context.Context) {
 	go r.worker(ctx)
 }
 
-// Stop drains the queue for up to drainTimeout, then returns.
+// Stop waits for the worker goroutine to finish draining and exit.
+// Must not be called before Start.
 func (r *Recorder) Stop(_ context.Context) error {
-	deadline := time.Now().Add(drainTimeout)
-	for {
-		if len(r.queue) == 0 || time.Now().After(deadline) {
-			return nil
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	<-r.done
+	return nil
 }
 
 // RecordSnapshot enqueues a snapshot for telemetry persistence. Returns false
@@ -112,6 +110,7 @@ func (r *Recorder) enqueue(msg recorderMsg) bool {
 }
 
 func (r *Recorder) worker(ctx context.Context) {
+	defer close(r.done)
 	retentionTicker := time.NewTicker(retentionInterval)
 	defer retentionTicker.Stop()
 
