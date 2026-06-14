@@ -36,3 +36,12 @@
 - Storage failure at startup fails the app clearly; write failures after startup log a warning and keep PLC running.
 - `write_queue_size` config field added to `storage` section.
 - `docs/storage_history.md` explaining storage design, tables, paths and inspection.
+- Embedded local web dashboard served by `net/http` with `go:embed` static assets.
+- REST API: `GET /api/status`, `GET /api/snapshot`, `GET /api/events/recent`, `GET /api/telemetry/recent`.
+- Command API: `POST /api/commands/{start,stop,setpoint,pid-gains,mode,manual-output,inject-disturbance,reset-loop}`.
+- Server-Sent Events stream at `GET /api/stream` with `snapshot`, `plc_event`, and `heartbeat` event types.
+- Vanilla JS dashboard with Canvas trend charts (PV/SP/MV, 300-point rolling buffer), dark engineering palette.
+- SSE broker with per-client buffered channels; slow clients silently dropped to avoid blocking the scan loop.
+- Fan-out extended in `internal/app` to deliver events and snapshots to both the storage recorder and the web SSE broker.
+- `web.enabled` defaults to `true`; binds to `127.0.0.1:8080`.
+- `internal/web` package with 24 tests covering API handlers, SSE, validation helpers, and config.

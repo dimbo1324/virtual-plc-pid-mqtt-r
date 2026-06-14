@@ -1,0 +1,149 @@
+/* styles.css — Dark engineering palette */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --bg:        #0d1117;
+    --bg2:       #161b22;
+    --bg3:       #21262d;
+    --border:    #30363d;
+    --text:      #c9d1d9;
+    --text-dim:  #8b949e;
+    --accent:    #58a6ff;
+    --green:     #3fb950;
+    --orange:    #d29922;
+    --red:       #f85149;
+    --yellow:    #e3b341;
+    --pv-color:  #4fc3f7;
+    --sp-color:  #ffb74d;
+    --mv-color:  #81c784;
+    --radius:    6px;
+    --font-mono: 'Consolas', 'Fira Mono', 'Courier New', monospace;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-mono); font-size: 13px; }
+
+/* ── Header ── */
+header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 10px 20px;
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+}
+
+header h1 { font-size: 15px; font-weight: 600; color: var(--accent); white-space: nowrap; }
+
+#status-bar { display: flex; align-items: center; gap: 8px; color: var(--text-dim); flex: 1; min-width: 0; }
+
+#device-id { color: var(--text); }
+.sep { color: var(--border); }
+#uptime { color: var(--text-dim); }
+
+.state-badge {
+    display: inline-block; padding: 1px 8px; border-radius: 12px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    background: var(--bg3); color: var(--text-dim); border: 1px solid var(--border);
+}
+.state-badge.running  { background: #1a3a1a; color: var(--green);  border-color: var(--green); }
+.state-badge.stopped  { background: #1a1a1a; color: var(--text-dim); }
+.state-badge.starting { background: #1a2a1a; color: var(--yellow); border-color: var(--yellow); }
+.state-badge.stopping { background: #2a1a1a; color: var(--orange); border-color: var(--orange); }
+.state-badge.faulted  { background: #2a1a1a; color: var(--red);    border-color: var(--red); }
+
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); display: inline-block; }
+.dot.connected { background: var(--green); box-shadow: 0 0 4px var(--green); }
+
+.header-controls { display: flex; gap: 8px; }
+
+/* ── Main layout ── */
+main { display: grid; grid-template-columns: 1fr 360px; gap: 0; height: calc(100vh - 45px); overflow: hidden; }
+
+#loops-section { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 16px; padding: 16px; overflow-y: auto; }
+
+#events-section {
+    background: var(--bg2); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+}
+#events-section h2 { padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border); }
+#event-terminal { flex: 1; overflow-y: auto; padding: 8px; font-size: 11px; line-height: 1.6; }
+
+.event-entry { padding: 1px 4px; border-radius: 3px; word-break: break-all; }
+.event-entry.level-info    { color: var(--text); }
+.event-entry.level-warning { color: var(--yellow); }
+.event-entry.level-error   { color: var(--red); }
+.event-entry.level-debug   { color: var(--text-dim); }
+
+/* ── Loop cards ── */
+.loop-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px;
+    width: 400px; flex-shrink: 0;
+}
+
+.loop-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.loop-name  { font-size: 14px; font-weight: 600; color: var(--accent); }
+.loop-unit  { color: var(--text-dim); font-size: 11px; }
+.loop-mode-badge {
+    margin-left: auto; padding: 1px 7px; border-radius: 10px;
+    font-size: 10px; text-transform: uppercase;
+    background: var(--bg3); color: var(--text-dim); border: 1px solid var(--border);
+}
+.loop-mode-badge.mode-auto     { color: var(--green);  border-color: var(--green); }
+.loop-mode-badge.mode-manual   { color: var(--orange); border-color: var(--orange); }
+.loop-mode-badge.mode-hold     { color: var(--yellow); border-color: var(--yellow); }
+.loop-mode-badge.mode-disabled { color: var(--red);    border-color: var(--red); }
+
+.loop-values { display: flex; gap: 16px; margin-bottom: 10px; }
+.val-block { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.val-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+.val-num   { font-size: 22px; font-weight: 700; letter-spacing: -1px; }
+.val-unit  { font-size: 10px; color: var(--text-dim); }
+
+.pv-val { color: var(--pv-color); }
+.sp-val { color: var(--sp-color); }
+.mv-val { color: var(--mv-color); }
+
+.trend-canvas {
+    display: block; width: 100%; height: 110px;
+    border: 1px solid var(--border); border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+/* ── Controls ── */
+.loop-controls { display: flex; flex-direction: column; gap: 6px; }
+.ctrl-row { display: flex; gap: 6px; align-items: center; }
+
+.ctrl-input, .ctrl-select {
+    flex: 1; background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text); padding: 5px 8px; border-radius: var(--radius);
+    font-family: var(--font-mono); font-size: 12px; outline: none;
+}
+.ctrl-input:focus, .ctrl-select:focus { border-color: var(--accent); }
+
+.ctrl-btn {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    padding: 5px 12px; border-radius: var(--radius); cursor: pointer;
+    font-family: var(--font-mono); font-size: 12px; white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+}
+.ctrl-btn:hover  { border-color: var(--accent); color: var(--accent); }
+.ctrl-btn.danger { border-color: var(--red);    color: var(--red); }
+.ctrl-btn.danger:hover { background: #2a1a1a; }
+.ctrl-btn.accent { border-color: var(--accent); color: var(--accent); }
+.ctrl-btn.accent:hover { background: #1a2030; }
+
+/* ── Global buttons ── */
+.btn-plc {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    padding: 5px 14px; border-radius: var(--radius); cursor: pointer;
+    font-family: var(--font-mono); font-size: 12px;
+    transition: border-color 0.15s, color 0.15s;
+}
+.btn-plc.start:hover { border-color: var(--green); color: var(--green); }
+.btn-plc.stop:hover  { border-color: var(--red);   color: var(--red); }
+
+/* ── Scrollbars ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }

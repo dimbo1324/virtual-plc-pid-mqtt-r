@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/storage"
+	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/internal/web"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/mqttx"
 	"github.com/dimbo1324/virtual-plc-pid-mqtt-r/pkg/plc"
 )
@@ -70,6 +71,15 @@ func (a *App) RunRuntime(ctx context.Context) error {
 		return fmt.Errorf("create MQTT client: %w", err)
 	}
 
+	// --- Web dashboard fan-out channels ---
+	webCfg := mapWebConfig(a.Config)
+	var webEventsCh chan plc.Event
+	var webSnapshotsCh chan plc.Snapshot
+	if webCfg.Enabled {
+		webEventsCh = make(chan plc.Event, 64)
+		webSnapshotsCh = make(chan plc.Snapshot, 16)
+	}
+
 	var background sync.WaitGroup
 	if mqttConfig.Enabled {
 		if err := mqttClient.Connect(ctx); err != nil {
@@ -89,19 +99,37 @@ func (a *App) RunRuntime(ctx context.Context) error {
 		}()
 	}
 
-	// Forward runtime events to MQTT and storage.
+	// Forward runtime events to MQTT, storage, and web SSE.
 	background.Add(1)
 	go func() {
 		defer background.Done()
-		a.forwardRuntimeEvents(ctx, runtime, mqttClient, rec)
+		a.forwardRuntimeEvents(ctx, runtime, mqttClient, rec, webEventsCh)
 	}()
 
-	// Consume snapshot stream for storage (non-blocking; separate goroutine).
-	if rec != nil {
+	// Consume snapshot stream for storage and web SSE.
+	if rec != nil || webSnapshotsCh != nil {
 		background.Add(1)
 		go func() {
 			defer background.Done()
-			a.consumeSnapshots(ctx, runtime, rec)
+			a.consumeSnapshots(ctx, runtime, rec, webSnapshotsCh)
+		}()
+	}
+
+	// --- Web dashboard server ---
+	if webCfg.Enabled {
+		webServer := web.NewServer(webCfg, web.Deps{
+			Runtime:        runtime,
+			Store:          store,
+			CommandHandler: web.CommandHandler(commandHandler),
+			EventsCh:       webEventsCh,
+			SnapshotsCh:    webSnapshotsCh,
+		}, a.Logger)
+		background.Add(1)
+		go func() {
+			defer background.Done()
+			if err := webServer.Start(ctx); err != nil {
+				a.Logger.Error("web server stopped", "error", err)
+			}
 		}()
 	}
 
@@ -110,6 +138,7 @@ func (a *App) RunRuntime(ctx context.Context) error {
 		"state", runtime.State(),
 		"mqtt_enabled", mqttConfig.Enabled,
 		"storage_enabled", storageCfg.Enabled,
+		"web_enabled", webCfg.Enabled,
 	)
 	<-ctx.Done()
 
@@ -267,19 +296,22 @@ func (a *App) publishMQTTTelemetry(ctx context.Context, runtime *plc.Runtime, cl
 	}
 }
 
-func (a *App) forwardRuntimeEvents(ctx context.Context, runtime *plc.Runtime, client *mqttx.Client, rec *storage.Recorder) {
+func (a *App) forwardRuntimeEvents(ctx context.Context, runtime *plc.Runtime, client *mqttx.Client, rec *storage.Recorder, webCh chan<- plc.Event) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case event := <-runtime.Events():
-			// Record to storage first (non-blocking).
 			if rec != nil {
 				storageEvent := plcEventToStorageRecord(event)
 				rec.RecordEvent(storageEvent)
 			}
-			// This is the application-owned fan-out point. Stage 07 can persist
-			// events here without adding storage dependencies to pkg/plc.
+			if webCh != nil {
+				select {
+				case webCh <- event:
+				default:
+				}
+			}
 			if client.IsConnected() && shouldPublishRuntimeEventToMQTT(event) {
 				if err := client.PublishEvent(ctx, event); err != nil {
 					a.Logger.Warn("publish MQTT event", "error", err)
@@ -289,17 +321,24 @@ func (a *App) forwardRuntimeEvents(ctx context.Context, runtime *plc.Runtime, cl
 	}
 }
 
-// consumeSnapshots reads from the runtime snapshot channel and submits each
-// snapshot to the recorder. This is a separate goroutine so MQTT telemetry
-// and storage operate independently.
-func (a *App) consumeSnapshots(ctx context.Context, runtime *plc.Runtime, rec *storage.Recorder) {
+// consumeSnapshots reads from the runtime snapshot channel and fans out to
+// the storage recorder and web SSE channel (both optional).
+func (a *App) consumeSnapshots(ctx context.Context, runtime *plc.Runtime, rec *storage.Recorder, webCh chan<- plc.Snapshot) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case snap := <-runtime.Snapshots():
-			if !rec.RecordSnapshot(snap) {
-				a.Logger.Warn("storage snapshot queue full; sample dropped")
+			if rec != nil {
+				if !rec.RecordSnapshot(snap) {
+					a.Logger.Warn("storage snapshot queue full; sample dropped")
+				}
+			}
+			if webCh != nil {
+				select {
+				case webCh <- snap:
+				default:
+				}
 			}
 		}
 	}

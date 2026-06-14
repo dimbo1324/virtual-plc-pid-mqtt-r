@@ -11,7 +11,7 @@ Do not connect this simulator directly to real actuators or safety-critical syst
 
 ## Current Status
 
-Stages 01-07 are implemented:
+Stages 01-08 are implemented:
 
 - JSON configuration and CLI foundation
 - Reusable PID controller package
@@ -22,9 +22,13 @@ Stages 01-07 are implemented:
 - **Local SQLite history for telemetry samples, events, commands, and PID changes**
 - **JSONL event log writer**
 - **Async bounded recorder preventing scan-loop blocking**
+- **Embedded local web dashboard** at `http://127.0.0.1:8080`
+  - Live PV/SP/MV trend charts (Canvas, 300-point rolling buffer)
+  - Server-Sent Events stream for real-time updates
+  - REST API for snapshot, status, history, and commands
 
-HTTP/SSE, the web dashboard, CI, authentication, TLS setup, and real equipment
-communication are outside the current implementation.
+CI, authentication, TLS setup, and real equipment communication are outside the
+current implementation.
 
 ## Architecture
 
@@ -110,6 +114,43 @@ up manually if you need to preserve history.
 
 See [Storage History](docs/storage_history.md) for table schemas, retention
 policy, inspection commands, and the integration design.
+
+## Web Dashboard
+
+When web is enabled (the default since Stage 08), a local HTTP server starts
+on `http://127.0.0.1:8080`. Open it in your browser after `--run`:
+
+```bash
+go run ./cmd/vplc --run --config configs/default.json
+# then open http://127.0.0.1:8080
+```
+
+The dashboard shows:
+- Live PV / SP / MV trend charts per loop (Canvas, 300-point rolling buffer)
+- PLC state badge and uptime
+- Per-loop controls: setpoint, mode, reset, disturbance injection
+- Event terminal with colour-coded severity
+- Server-Sent Events for real-time updates (no polling)
+
+REST API endpoints (all on `127.0.0.1`):
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/status` | PLC state, device ID, uptime |
+| `GET` | `/api/snapshot` | Full snapshot (all loops) |
+| `GET` | `/api/events/recent?limit=N` | Recent events from storage |
+| `GET` | `/api/telemetry/recent?loop=X&limit=N` | Recent telemetry from storage |
+| `GET` | `/api/stream` | SSE stream (`snapshot`, `plc_event`, `heartbeat`) |
+| `POST` | `/api/commands/start` | Start PLC |
+| `POST` | `/api/commands/stop` | Stop PLC |
+| `POST` | `/api/commands/setpoint` | `{"loop":"...","setpoint":6.0}` |
+| `POST` | `/api/commands/pid-gains` | `{"loop":"...","kp":3,"ki":0.25,"kd":0.05}` |
+| `POST` | `/api/commands/mode` | `{"loop":"...","mode":"manual"}` |
+| `POST` | `/api/commands/manual-output` | `{"loop":"...","value":50.0}` |
+| `POST` | `/api/commands/inject-disturbance` | `{"loop":"...","amplitude":5,"duration_seconds":30}` |
+| `POST` | `/api/commands/reset-loop` | `{"loop":"..."}` |
+
+Set `"enabled": false` in the `web` section to disable the server.
 
 ## Configuration
 
